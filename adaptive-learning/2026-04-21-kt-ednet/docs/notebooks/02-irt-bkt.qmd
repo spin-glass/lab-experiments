@@ -1,0 +1,700 @@
+---
+title: "IRT 2PL + BKT ベースライン"
+subtitle: "知識状態の推定は出題戦略に使えるか？"
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    code-fold: true
+    code-summary: "コードを表示"
+    theme: cosmo
+    fig-width: 10
+    fig-height: 5.5
+jupyter: python3
+execute:
+  cache: true
+  warning: false
+---
+
+## はじめに — このノートブックの問い
+
+EDA（ノートブック 01）で、3 つの重要な事実を確認した。
+
+- **48% のユーザーが 10 問以下で離脱**する。適切な問題を出せなければ学習は始まらない
+- **Part 別正答率に大きな個人差**がある。一律出題では「簡単すぎ/難しすぎ」が避けられない
+- **学習曲線は存在する**（序盤 50% → 100 問超で 65-70%）。知識状態は時系列で変化する
+
+これらの問題を解決するには、学習者ごとの **スキル別知識状態** を推定し、それに基づいて出題を最適化する必要がある。本ノートブックでは古典的な 2 つのモデルを実装し、以下の問いに答える。
+
+> **IRT / BKT で推定した知識状態は、出題戦略の入力として十分か？**
+
+1. **IRT 2PL**（Item Response Theory）— ユーザーの能力 θ とスキルの難易度・識別力を同時推定。スナップショット型
+2. **BKT**（Bayesian Knowledge Tracing）— スキルごとの習熟確率の **時系列変化** を追跡
+
+最終的に、テストセットでの予測精度を測定し、推定された知識状態が出題戦略（ノートブック 04）の入力として機能するかを検証する。深層 KT モデル（ノートブック 03）のベースラインも兼ねる。
+
+::: {.callout-note}
+IRT の MCMC 推論には 10〜20 分程度かかる。`execute: cache: true` により 2 回目以降はキャッシュから読み込まれる。
+:::
+
+## 1. セットアップ
+
+```{python}
+#| label: setup
+from pathlib import Path
+
+import matplotlib.pyplot as plt
+import matplotlib.font_manager as fm
+import matplotlib.ticker as ticker
+import numpy as np
+import polars as pl
+
+# --- Project paths ---
+PROJECT_ROOT = next(
+    p for p in [Path.cwd(), *Path.cwd().parents] if (p / "pyproject.toml").exists()
+)
+RAW_DIR = PROJECT_ROOT / "data" / "raw"
+PROCESSED_DIR = PROJECT_ROOT / "data" / "processed"
+N_USERS = 5_000
+SEED = 42
+
+# --- Japanese font ---
+jp_fonts = [
+    f.name for f in fm.fontManager.ttflist
+    if "Hiragino" in f.name or "Gothic" in f.name or "Noto Sans CJK" in f.name
+]
+if jp_fonts:
+    plt.rcParams["font.family"] = jp_fonts[0]
+plt.rcParams["axes.unicode_minus"] = False
+
+# --- Palette ---
+BLUE = "#4C72B0"
+ORANGE = "#DD8452"
+GREEN = "#55A868"
+RED = "#C44E52"
+PURPLE = "#8172B3"
+```
+
+## 2. データの読み込みと前処理
+
+```{python}
+#| label: load-data
+from src.data.sample import build_sample
+
+result = build_sample(RAW_DIR, n_users=N_USERS, seed=SEED, processed_dir=PROCESSED_DIR)
+df_raw = result.df
+print(f"Raw: {df_raw.height:,} rows, {df_raw['user_id'].n_unique():,} users")
+```
+
+EDA で導出した前処理方針をパイプラインとして適用する。
+
+- 系列長 10 未満のユーザーを除外（Casual 層の離脱ノイズを排除）
+- `elapsed_time` < 1 秒の行を除外（推測行動）、> 300 秒でクリッピング（放置）
+- `correct` が null の行を除外
+- 系列長 2,000 でトランケーション（上位 1% のトリミング）
+- `tags` を explode し `concept` カラムに展開（BKT の単一スキル要件に対応）
+- ユーザー単位で train / val / test = 70 / 15 / 15 に分割（情報リーク防止）
+
+```{python}
+#| label: preprocess
+from src.features.preprocess import preprocess_pipeline
+
+split = preprocess_pipeline(df_raw, seed=SEED)
+
+for name, sdf in [("train", split.train), ("val", split.val), ("test", split.test)]:
+    n_u = sdf["user_id"].n_unique()
+    n_r = sdf.height
+    print(f"  {name:5s}: {n_u:>5,} users, {n_r:>9,} rows")
+
+print(f"  concepts: {split.n_concepts}")
+```
+
+## 3. IRT 2PL モデル
+
+### 3.1 モデルの概要
+
+IRT 2PL は以下の確率モデルで正答確率を表現する。
+
+$$
+P(\text{correct} = 1 \mid \theta_i, a_j, b_j) = \sigma\bigl(a_j (\theta_i - b_j)\bigr)
+$$
+
+- $\theta_i$: ユーザー $i$ の能力（高いほど正答しやすい）
+- $b_j$: コンセプト $j$ の難易度（高いほど正答しにくい）
+- $a_j$: コンセプト $j$ の識別力（能力差をどれだけ反映するか）
+
+PyMC で NUTS（MCMC）によるベイズ推論を行う。計算コストの制約から、訓練セットの 500 ユーザーをサブサンプルして推定する。
+
+### 3.2 モデルの構築と推論
+
+```{python}
+#| label: irt-fit
+from src.models.irt import fit_irt_2pl
+
+irt_result = fit_irt_2pl(
+    split.train,
+    n_samples=1000,
+    n_tune=1000,
+    chains=2,
+    cores=2,
+    seed=SEED,
+    max_users=500,
+)
+print(f"IRT fitted: {len(irt_result.user_ids)} users, {len(irt_result.concept_ids)} concepts")
+```
+
+### 3.3 収束診断
+
+```{python}
+#| label: irt-diagnostics
+#| fig-cap: "IRT 2PL トレースプロット（difficulty パラメータの一部）"
+import arviz as az
+
+az.plot_trace(irt_result.trace, var_names=["difficulty"], compact=True)
+plt.tight_layout()
+plt.show()
+```
+
+```{python}
+#| label: irt-rhat
+summary = az.summary(irt_result.trace, var_names=["theta", "difficulty", "log_disc"])
+rhat_max = summary["r_hat"].max()
+rhat_bad = (summary["r_hat"] > 1.05).sum()
+print(f"R-hat: max={rhat_max:.3f}, >1.05 の数={rhat_bad}")
+```
+
+### 3.4 パラメータの可視化
+
+```{python}
+#| label: irt-params
+#| fig-cap: "IRT 2PL — コンセプト別 難易度 vs 識別力 / ユーザー能力分布"
+fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+
+# Difficulty vs Discrimination scatter
+ax = axes[0]
+ax.scatter(irt_result.difficulty, irt_result.discrimination, alpha=0.6, s=20, c=BLUE)
+ax.set_xlabel("難易度 (b)")
+ax.set_ylabel("識別力 (a)")
+ax.set_title("コンセプト別パラメータ")
+ax.axhline(1.0, color="gray", linestyle="--", alpha=0.5)
+ax.axvline(0.0, color="gray", linestyle="--", alpha=0.5)
+
+# Ability histogram
+ax = axes[1]
+ax.hist(irt_result.theta, bins=30, color=BLUE, alpha=0.7, edgecolor="white")
+ax.set_xlabel("能力 (θ)")
+ax.set_ylabel("ユーザー数")
+ax.set_title("ユーザー能力分布")
+ax.axvline(0.0, color="gray", linestyle="--", alpha=0.5)
+
+plt.tight_layout()
+plt.show()
+```
+
+### 3.5 推定パラメータの妥当性検証
+
+IRT が推定した θ や b は、実際のデータと整合しているか？
+
+```{python}
+#| label: irt-validation
+#| fig-cap: "IRT パラメータの妥当性 — 推定値 vs 実測値"
+
+# θ vs 実際の正答率（IRT 学習に使ったユーザー）
+irt_train_users = set(irt_result.user_ids.tolist())
+train_sub = split.train.filter(pl.col("user_id").is_in(irt_train_users))
+user_acc = (
+    train_sub.group_by("user_id")
+    .agg(pl.col("correct").mean().alias("accuracy"))
+    .sort("user_id")
+)
+
+theta_map = {int(uid): float(th) for uid, th in zip(irt_result.user_ids, irt_result.theta, strict=True)}
+user_acc = user_acc.with_columns(
+    pl.col("user_id").map_elements(lambda u: theta_map.get(int(u), 0.0), return_dtype=pl.Float64).alias("theta")
+)
+
+# b vs コンセプト別正答率
+concept_acc = (
+    train_sub.group_by("concept")
+    .agg(pl.col("correct").mean().alias("accuracy"))
+    .sort("concept")
+)
+diff_map = {int(cid): float(d) for cid, d in zip(irt_result.concept_ids, irt_result.difficulty, strict=True)}
+concept_acc = concept_acc.with_columns(
+    pl.col("concept").map_elements(lambda c: diff_map.get(int(c), 0.0), return_dtype=pl.Float64).alias("difficulty")
+)
+
+fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+
+# θ vs accuracy
+ax = axes[0]
+ax.scatter(user_acc["theta"].to_numpy(), user_acc["accuracy"].to_numpy(), alpha=0.3, s=10, c=BLUE)
+corr_theta = np.corrcoef(user_acc["theta"].to_numpy(), user_acc["accuracy"].to_numpy())[0, 1]
+ax.set_xlabel("推定能力 (θ)")
+ax.set_ylabel("実際の正答率")
+ax.set_title(f"θ vs 正答率 (r = {corr_theta:.3f})")
+
+# b vs accuracy (expect negative correlation)
+ax = axes[1]
+ax.scatter(concept_acc["difficulty"].to_numpy(), concept_acc["accuracy"].to_numpy(), alpha=0.5, s=20, c=ORANGE)
+corr_diff = np.corrcoef(concept_acc["difficulty"].to_numpy(), concept_acc["accuracy"].to_numpy())[0, 1]
+ax.set_xlabel("推定難易度 (b)")
+ax.set_ylabel("コンセプト別正答率")
+ax.set_title(f"難易度 vs 正答率 (r = {corr_diff:.3f})")
+
+plt.tight_layout()
+plt.show()
+
+print(f"θ と正答率の相関: r = {corr_theta:.3f}")
+print(f"難易度と正答率の相関: r = {corr_diff:.3f} (負であるほど妥当)")
+```
+
+### 3.6 出題戦略への示唆 — ZPD の可視化
+
+IRT の最大の利点は、$\theta_i - b_j$ の差分から **Zone of Proximal Development（最近接発達領域）** を計算できることである。差分が小さいコンセプトこそ、その学習者にとって「難しすぎず易しすぎない」最適な出題対象となる。
+
+```{python}
+#| label: irt-zpd
+#| fig-cap: "ZPD 分析 — ユーザーごとの最適難易度帯にあるコンセプトの割合"
+
+# サンプルユーザー 100 人で ZPD 分析
+sample_users = irt_result.user_ids[:100]
+zpd_margin = 0.5  # |θ - b| < margin を ZPD とする
+
+zpd_fracs = []
+for uid in sample_users:
+    th = irt_result.theta[np.where(irt_result.user_ids == uid)[0][0]]
+    gaps = np.abs(th - irt_result.difficulty)
+    too_easy = np.sum(gaps > zpd_margin * 2)  # θ >> b
+    zpd = np.sum(gaps <= zpd_margin)
+    too_hard = np.sum(gaps > zpd_margin * 2)  # b >> θ (re-check direction)
+    n_concepts = len(irt_result.difficulty)
+
+    # Classify by sign of θ - b
+    diffs = th - irt_result.difficulty
+    easy_frac = np.mean(diffs > zpd_margin)   # θ が b より十分高い
+    zpd_frac = np.mean(np.abs(diffs) <= zpd_margin)
+    hard_frac = np.mean(diffs < -zpd_margin)  # b が θ より十分高い
+    zpd_fracs.append({"user_id": int(uid), "theta": float(th),
+                       "easy": easy_frac, "zpd": zpd_frac, "hard": hard_frac})
+
+zpd_df = pl.DataFrame(zpd_fracs).sort("theta")
+
+fig, ax = plt.subplots(figsize=(10, 5))
+thetas = zpd_df["theta"].to_numpy()
+ax.bar(range(len(thetas)), zpd_df["easy"].to_numpy(), label="簡単すぎる", color=GREEN, alpha=0.7)
+ax.bar(range(len(thetas)), zpd_df["zpd"].to_numpy(),
+       bottom=zpd_df["easy"].to_numpy(), label=f"ZPD (|θ-b| ≤ {zpd_margin})", color=BLUE, alpha=0.7)
+ax.bar(range(len(thetas)), zpd_df["hard"].to_numpy(),
+       bottom=(zpd_df["easy"] + zpd_df["zpd"]).to_numpy(), label="難しすぎる", color=RED, alpha=0.7)
+ax.set_xlabel("ユーザー（θ 順）")
+ax.set_ylabel("コンセプトの割合")
+ax.set_title("ユーザーごとの出題難易度分布")
+ax.legend(loc="upper left")
+plt.tight_layout()
+plt.show()
+
+mean_zpd = zpd_df["zpd"].mean()
+print(f"ZPD に該当するコンセプトの平均割合: {mean_zpd:.1%}")
+print("→ 一律出題では大半が「簡単すぎる」か「難しすぎる」に分類される")
+```
+
+## 4. BKT モデル
+
+### 4.1 モデルの概要
+
+BKT はスキルごとに 4 つのパラメータを持つ隠れマルコフモデルである。IRT と異なり、学習による **知識状態の時系列変化** を追跡できる。
+
+- $P(L_0)$: 初期習熟確率（最初から知っている確率）
+- $P(T)$: 遷移確率（1 ステップで未習得→習得に移る確率）
+- $P(G)$: 推測確率（未習得なのに正答する確率）
+- $P(S)$: 失念確率（習得しているのに誤答する確率）
+
+pyBKT で EM アルゴリズムにより推定する。
+
+### 4.2 学習
+
+```{python}
+#| label: bkt-fit
+from src.models.bkt import fit_bkt, extract_params
+
+bkt_result = fit_bkt(split.train, seed=SEED, min_interactions=50)
+print(f"BKT fitted: {len(bkt_result.skills)} skills")
+```
+
+### 4.3 パラメータの可視化
+
+```{python}
+#| label: bkt-params
+#| fig-cap: "BKT パラメータ — 主要スキルのヒートマップ"
+params_df = extract_params(bkt_result)
+
+# Sort by learn rate and take top 30 for readability
+top = params_df.sort("learn", descending=True).head(30)
+param_cols = ["prior", "learn", "guess", "slip"]
+mat = top.select(param_cols).to_numpy()
+labels = top["skill"].to_list()
+
+fig, ax = plt.subplots(figsize=(8, 10))
+im = ax.imshow(mat, aspect="auto", cmap="YlOrRd", vmin=0, vmax=1)
+ax.set_xticks(range(len(param_cols)))
+ax.set_xticklabels(["P(L₀)", "P(T)", "P(G)", "P(S)"])
+ax.set_yticks(range(len(labels)))
+ax.set_yticklabels(labels, fontsize=8)
+ax.set_title("BKT パラメータ（learn rate 上位 30 スキル）")
+
+for i in range(mat.shape[0]):
+    for j in range(mat.shape[1]):
+        ax.text(j, i, f"{mat[i, j]:.2f}", ha="center", va="center", fontsize=7)
+
+plt.colorbar(im, ax=ax, shrink=0.6)
+plt.tight_layout()
+plt.show()
+
+# learn rate の最高・最低スキルを特定（後続セルで参照）
+params_sorted = params_df.sort("learn", descending=True)
+high_learn_skill = params_sorted["skill"][0]
+low_learn_skill = params_sorted["skill"][-1]
+print(f"learn rate 最高: skill {high_learn_skill} ({params_sorted['learn'][0]:.3f})")
+print(f"learn rate 最低: skill {low_learn_skill} ({params_sorted['learn'][-1]:.3f})")
+```
+
+### 4.4 習熟確率の推移
+
+BKT の最大の特徴は、学習者のスキル別習熟確率 P(mastery) が系列内で変化することである。代表的なスキルについて、ユーザーの解答を重ねるにつれて P(mastery) がどう推移するかを確認する。
+
+```{python}
+#| label: bkt-mastery
+#| fig-cap: "BKT 習熟確率の推移 — 代表的スキルにおける学習者の P(mastery)"
+from src.models.bkt import predict_bkt_mastery
+
+mastery_df = predict_bkt_mastery(bkt_result, split.train)
+
+fig, axes = plt.subplots(1, 2, figsize=(12, 5), sharey=True)
+
+for ax, skill, title_suffix in [
+    (axes[0], high_learn_skill, f"(skill {high_learn_skill}, learn rate 最高)"),
+    (axes[1], low_learn_skill, f"(skill {low_learn_skill}, learn rate 最低)"),
+]:
+    skill_data = mastery_df.filter(pl.col("concept") == skill)
+    # Select up to 10 users with enough interactions for this skill
+    user_counts = skill_data.group_by("user_id").agg(pl.len().alias("n")).filter(pl.col("n") >= 5)
+    sample_uids = user_counts.sort("n", descending=True).head(10)["user_id"].to_list()
+
+    for uid in sample_uids:
+        user_skill = skill_data.filter(pl.col("user_id") == uid).sort("solving_id")
+        steps = range(len(user_skill))
+        ax.plot(steps, user_skill["state_predictions"].to_numpy(), alpha=0.5, linewidth=1)
+
+    ax.set_xlabel("解答ステップ")
+    ax.set_title(f"P(mastery) の推移 {title_suffix}")
+    ax.set_ylim(0, 1)
+    ax.axhline(0.95, color="gray", linestyle="--", alpha=0.3, label="習得閾値 0.95")
+
+axes[0].set_ylabel("P(mastery)")
+axes[0].legend()
+plt.tight_layout()
+plt.show()
+```
+
+### 4.5 パラメータの妥当性検証
+
+```{python}
+#| label: bkt-validation
+#| fig-cap: "BKT P(L₀) vs 初回正答率 — パラメータの妥当性"
+
+# P(L₀) vs 各スキルの初回正答率
+first_attempts = (
+    split.train
+    .sort("user_id", "solving_id")
+    .group_by(["user_id", "concept"])
+    .first()
+    .group_by("concept")
+    .agg(pl.col("correct").mean().alias("first_acc"))
+)
+
+# Join with BKT params
+first_attempts = first_attempts.with_columns(pl.col("concept").cast(pl.Utf8))
+params_with_acc = params_df.join(
+    first_attempts, left_on="skill", right_on="concept", how="inner"
+)
+
+fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+
+# P(L₀) vs first attempt accuracy
+ax = axes[0]
+ax.scatter(
+    params_with_acc["prior"].to_numpy(),
+    params_with_acc["first_acc"].to_numpy(),
+    alpha=0.5, s=30, c=ORANGE,
+)
+corr_prior = np.corrcoef(
+    params_with_acc["prior"].to_numpy(),
+    params_with_acc["first_acc"].to_numpy(),
+)[0, 1]
+ax.set_xlabel("P(L₀)")
+ax.set_ylabel("初回正答率")
+ax.set_title(f"P(L₀) vs 初回正答率 (r = {corr_prior:.3f})")
+ax.plot([0, 1], [0, 1], "k--", alpha=0.3)
+
+# Learn rate distribution with interpretation
+ax = axes[1]
+ax.hist(params_df["learn"].to_numpy(), bins=20, color=ORANGE, alpha=0.7, edgecolor="white")
+ax.set_xlabel("P(T) — 遷移確率")
+ax.set_ylabel("スキル数")
+ax.set_title("学習しやすさの分布")
+ax.axvline(params_df["learn"].median(), color="gray", linestyle="--", alpha=0.5,
+           label=f"中央値 {params_df['learn'].median():.3f}")
+ax.legend()
+
+plt.tight_layout()
+plt.show()
+
+print(f"P(L₀) と初回正答率の相関: r = {corr_prior:.3f}")
+print(f"learn rate 中央値: {params_df['learn'].median():.3f}")
+print(f"learn rate 最高スキル: {high_learn_skill} ({params_df.filter(pl.col('skill') == high_learn_skill)['learn'][0]:.3f})")
+print(f"learn rate 最低スキル: {low_learn_skill} ({params_df.filter(pl.col('skill') == low_learn_skill)['learn'][0]:.3f})")
+```
+
+## 5. 評価と比較
+
+### 5.1 テストセットでの予測
+
+```{python}
+#| label: predictions
+from src.models.irt import predict_irt
+from src.models.bkt import predict_bkt
+from src.eval.metrics import evaluate_predictions, calibration_data
+
+y_true = split.test["correct"].to_numpy().astype(np.int64)
+
+# IRT predictions
+irt_probs = predict_irt(irt_result, split.test)
+irt_eval = evaluate_predictions(y_true, irt_probs)
+
+# BKT predictions
+bkt_probs = predict_bkt(bkt_result, split.test)
+bkt_eval = evaluate_predictions(y_true, bkt_probs)
+
+print(f"{'Model':<8} {'AUC':>6} {'Acc':>6} {'LogLoss':>8} {'N':>10}")
+print("-" * 42)
+print(f"{'IRT 2PL':<8} {irt_eval.auc_roc:>6.3f} {irt_eval.accuracy:>6.3f} {irt_eval.log_loss:>8.4f} {irt_eval.n_samples:>10,}")
+print(f"{'BKT':<8} {bkt_eval.auc_roc:>6.3f} {bkt_eval.accuracy:>6.3f} {bkt_eval.log_loss:>8.4f} {bkt_eval.n_samples:>10,}")
+```
+
+### 5.2 AUC-ROC 比較
+
+```{python}
+#| label: roc-curves
+#| fig-cap: "ROC 曲線の比較 — IRT 2PL vs BKT"
+from sklearn.metrics import roc_curve
+
+fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+
+# ROC curves
+ax = axes[0]
+for name, probs, color in [("IRT 2PL", irt_probs, BLUE), ("BKT", bkt_probs, ORANGE)]:
+    fpr, tpr, _ = roc_curve(y_true, probs)
+    ax.plot(fpr, tpr, label=name, color=color, linewidth=2)
+ax.plot([0, 1], [0, 1], "k--", alpha=0.3)
+ax.set_xlabel("False Positive Rate")
+ax.set_ylabel("True Positive Rate")
+ax.set_title("ROC 曲線")
+ax.legend()
+
+# AUC bar chart
+ax = axes[1]
+models = ["IRT 2PL", "BKT"]
+aucs = [irt_eval.auc_roc, bkt_eval.auc_roc]
+bars = ax.bar(models, aucs, color=[BLUE, ORANGE], alpha=0.8)
+ax.set_ylabel("AUC-ROC")
+ax.set_title("AUC 比較")
+ax.set_ylim(0.4, 0.8)
+for bar, auc in zip(bars, aucs, strict=True):
+    ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.005,
+            f"{auc:.3f}", ha="center", va="bottom", fontweight="bold")
+
+plt.tight_layout()
+plt.show()
+```
+
+### 5.3 キャリブレーション
+
+```{python}
+#| label: calibration
+#| fig-cap: "キャリブレーションプロット — 予測確率 vs 実際の正答率"
+fig, ax = plt.subplots(figsize=(6, 6))
+
+for name, probs, color in [("IRT 2PL", irt_probs, BLUE), ("BKT", bkt_probs, ORANGE)]:
+    frac_pos, mean_pred = calibration_data(y_true, probs, n_bins=10)
+    ax.plot(mean_pred, frac_pos, "o-", label=name, color=color, linewidth=2, markersize=6)
+
+ax.plot([0, 1], [0, 1], "k--", alpha=0.3, label="Perfect calibration")
+ax.set_xlabel("予測確率")
+ax.set_ylabel("実際の正答率")
+ax.set_title("キャリブレーション")
+ax.legend()
+ax.set_xlim(0, 1)
+ax.set_ylim(0, 1)
+plt.tight_layout()
+plt.show()
+```
+
+### 5.4 Part 別の性能
+
+```{python}
+#| label: auc-by-part
+#| fig-cap: "TOEIC Part 別 AUC-ROC"
+from sklearn.metrics import roc_auc_score
+
+test_with_preds = split.test.with_columns(
+    pl.Series("irt_prob", irt_probs),
+    pl.Series("bkt_prob", bkt_probs),
+)
+
+parts = sorted(test_with_preds["part"].unique().to_list())
+irt_aucs = []
+bkt_aucs = []
+for part in parts:
+    sub = test_with_preds.filter(pl.col("part") == part)
+    yt = sub["correct"].to_numpy().astype(np.int64)
+    if len(np.unique(yt)) < 2:
+        irt_aucs.append(np.nan)
+        bkt_aucs.append(np.nan)
+        continue
+    irt_aucs.append(roc_auc_score(yt, sub["irt_prob"].to_numpy()))
+    bkt_aucs.append(roc_auc_score(yt, sub["bkt_prob"].to_numpy()))
+
+x = np.arange(len(parts))
+width = 0.35
+fig, ax = plt.subplots(figsize=(10, 5))
+ax.bar(x - width / 2, irt_aucs, width, label="IRT 2PL", color=BLUE, alpha=0.8)
+ax.bar(x + width / 2, bkt_aucs, width, label="BKT", color=ORANGE, alpha=0.8)
+ax.set_xticks(x)
+ax.set_xticklabels([f"Part {p}" for p in parts])
+ax.set_ylabel("AUC-ROC")
+ax.set_title("TOEIC Part 別の予測性能")
+ax.legend()
+ax.set_ylim(0.4, 0.8)
+
+# Annotate values
+for i, (ia, ba) in enumerate(zip(irt_aucs, bkt_aucs, strict=True)):
+    if not np.isnan(ia):
+        ax.text(i - width / 2, ia + 0.005, f"{ia:.2f}", ha="center", va="bottom", fontsize=8)
+    if not np.isnan(ba):
+        ax.text(i + width / 2, ba + 0.005, f"{ba:.2f}", ha="center", va="bottom", fontsize=8)
+
+plt.tight_layout()
+plt.show()
+```
+
+### 5.5 系列位置別の予測精度
+
+IRT は時間変化を捉えない（θ は系列全体で一定）。一方、BKT は学習の進行とともに P(mastery) を更新する。この違いは、系列の序盤・中盤・終盤での予測精度に現れるか？
+
+```{python}
+#| label: auc-by-position
+#| fig-cap: "系列位置別の AUC-ROC — IRT は位置に依存しないか？BKT は後半で改善するか？"
+
+# 各ユーザー内での系列位置を計算
+test_ordered = (
+    test_with_preds
+    .sort("user_id", "timestamp")
+    .with_columns(
+        pl.col("timestamp")
+        .rank(method="ordinal")
+        .over("user_id")
+        .alias("seq_pos")
+    )
+)
+
+# 序盤 / 中盤 / 終盤に分割
+bins = [
+    ("序盤 (1-10)", 1, 10),
+    ("中盤 (11-50)", 11, 50),
+    ("終盤 (51+)", 51, None),
+]
+
+position_results = []
+for label, lo, hi in bins:
+    if hi is not None:
+        sub = test_ordered.filter((pl.col("seq_pos") >= lo) & (pl.col("seq_pos") <= hi))
+    else:
+        sub = test_ordered.filter(pl.col("seq_pos") >= lo)
+    if sub.height < 100:
+        continue
+    yt = sub["correct"].to_numpy().astype(np.int64)
+    if len(np.unique(yt)) < 2:
+        continue
+    irt_auc = roc_auc_score(yt, sub["irt_prob"].to_numpy())
+    bkt_auc = roc_auc_score(yt, sub["bkt_prob"].to_numpy())
+    position_results.append({"position": label, "IRT 2PL": irt_auc, "BKT": bkt_auc, "n": sub.height})
+    print(f"  {label:15s}: IRT AUC={irt_auc:.3f}, BKT AUC={bkt_auc:.3f} (n={sub.height:,})")
+
+pos_df = pl.DataFrame(position_results)
+x = np.arange(len(pos_df))
+width = 0.35
+
+fig, ax = plt.subplots(figsize=(8, 5))
+ax.bar(x - width / 2, pos_df["IRT 2PL"].to_numpy(), width, label="IRT 2PL", color=BLUE, alpha=0.8)
+ax.bar(x + width / 2, pos_df["BKT"].to_numpy(), width, label="BKT", color=ORANGE, alpha=0.8)
+ax.set_xticks(x)
+ax.set_xticklabels(pos_df["position"].to_list())
+ax.set_ylabel("AUC-ROC")
+ax.set_title("系列位置別の予測精度")
+ax.legend()
+ax.set_ylim(0.4, 0.8)
+plt.tight_layout()
+plt.show()
+```
+
+## 6. 考察
+
+### 6.1 実験結果のまとめ
+
+```{python}
+#| label: summary-table
+# 全体のサマリーテーブル
+print("=" * 55)
+print(f"{'':15s} {'IRT 2PL':>12s} {'BKT':>12s} {'差':>12s}")
+print("-" * 55)
+print(f"{'AUC-ROC':15s} {irt_eval.auc_roc:>12.3f} {bkt_eval.auc_roc:>12.3f} {irt_eval.auc_roc - bkt_eval.auc_roc:>+12.3f}")
+print(f"{'Accuracy':15s} {irt_eval.accuracy:>12.3f} {bkt_eval.accuracy:>12.3f} {irt_eval.accuracy - bkt_eval.accuracy:>+12.3f}")
+print(f"{'Log Loss':15s} {irt_eval.log_loss:>12.4f} {bkt_eval.log_loss:>12.4f} {irt_eval.log_loss - bkt_eval.log_loss:>+12.4f}")
+print("=" * 55)
+```
+
+### 6.2 IRT の強みと限界
+
+**強み**: IRT は θ と b の推定値が実データと高い相関を示した（3.5 節）。θ-b の差分から ZPD を計算でき、ユーザーごとに「最適難易度帯」にあるコンセプトを特定できる（3.6 節）。これは出題戦略の直接的な入力となる。
+
+**限界**: IRT の θ は系列全体で一定であり、EDA（01）で確認した学習曲線（序盤 50% → 100 問超で 65-70%）を捉えられない。5.5 節の系列位置別 AUC がこれを裏付ける。また、MCMC の計算コストにより 500 ユーザーのサブサンプルに限られ、残りのユーザーには θ=0 を割り当てた。
+
+### 6.3 BKT の強みと限界
+
+**強み**: BKT は P(mastery) の時系列推移を追跡でき（4.4 節）、学習の進行とともに知識状態の推定を更新する。learn rate が高いスキルでは P(mastery) が数ステップで急上昇する様子が確認できた。
+
+**限界**: BKT はスキルごとに独立に推定するため、スキル間の相関（例: 文法力とリーディング力の連動）を無視する。また、P(L₀) と初回正答率の相関（4.5 節）は BKT のパラメータ推定の精度を反映しているが、guess/slip パラメータの識別可能性には注意が必要である。
+
+### 6.4 出題戦略 (04) に向けて
+
+IRT と BKT は異なる知識状態指標を提供する。
+
+- **IRT**: $\theta_i - b_j$ → 静的な「能力-難易度ギャップ」。cold-start 後すぐに使えるが、学習効果を反映しない
+- **BKT**: $P(\text{mastery})$ → 動的な「スキル別習熟確率」。データが蓄積するほど精度が上がるが、スキル間の関連は捉えない
+
+出題戦略（ノートブック 04）では、この 2 つの指標を組み合わせた選択方針（例: 低 mastery かつ ZPD 内のスキルを優先）を検討する。
+
+### 6.5 深層 KT (03) で何を解決すべきか
+
+古典モデルのベースライン AUC は IRT {irt_eval.auc_roc:.3f}、BKT {bkt_eval.auc_roc:.3f} であった。深層 KT モデルに期待するのは以下である。
+
+1. **AUC の向上** — DKT/SAKT/SimpleKT は系列全体の文脈を学習するため、AUC 0.75-0.78 が目標
+2. **系列位置依存性の解消** — 序盤・終盤で均一な予測精度を実現する（IRT の弱点を克服）
+3. **スキル間の関連の学習** — attention 機構や embedding でスキル間の相関を捉える（BKT の弱点を克服）
+4. **スケーラビリティ** — MCMC のような計算コスト制約なく、全ユーザーで推論可能
+
+::: {.callout-tip}
+## 次のノートブック
+[03 Deep Knowledge Tracing](03-deep-kt.qmd) — DKT / SAKT / SimpleKT の実装と比較。古典モデルのベースラインをどこまで超えられるか？
+:::

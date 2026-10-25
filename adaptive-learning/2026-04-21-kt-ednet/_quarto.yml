@@ -1,0 +1,36 @@
+project:
+  type: website
+  output-dir: docs
+  render:
+    - index.qmd
+    - "notebooks/01-eda.qmd"
+    - "notebooks/02-irt-bkt.qmd"
+  # Exclude huge trees from Quarto's resource scan — massively speeds up
+  # `quarto inspect` and `preview` in this repo (data/ is ~6GB, .venv/ is ~500MB).
+  resources: []
+  execute-dir: project
+
+website:
+  title: "Adaptive Learning KT"
+  navbar:
+    left:
+      - text: "Home"
+        href: index.qmd
+      - text: "01 EDA"
+        href: notebooks/01-eda.qmd
+      - text: "02 IRT+BKT"
+        href: notebooks/02-irt-bkt.qmd
+
+execute:
+  freeze: auto
+  cache: true
+  warning: false
+
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    code-fold: show
+    theme: cosmo
+
+jupyter: adaptive-learning-kt

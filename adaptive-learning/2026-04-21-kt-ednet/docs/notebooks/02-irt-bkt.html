@@ -1,0 +1,1639 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.8.26">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>IRT 2PL + BKT ベースライン – Adaptive Learning KT</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.5.1/dist/jquery.min.js" integrity="sha384-ZvpUoO/+PpLXR1lu4jmpXWu80pZlYUAfxl5NsBMWOEPSjUn/6Z/hRTt8+pR6L4N2" crossorigin="anonymous"></script><script src="../site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="../site_libs/quarto-nav/headroom.min.js"></script>
+<script src="../site_libs/clipboard/clipboard.min.js"></script>
+<script src="../site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="../site_libs/quarto-search/fuse.min.js"></script>
+<script src="../site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="../">
+<script src="../site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="../site_libs/quarto-html/axe/axe-check.js" type="module"></script>
+<script src="../site_libs/quarto-html/popper.min.js"></script>
+<script src="../site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="../site_libs/quarto-html/anchor.min.js"></script>
+<link href="../site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting-587c61ba64f3a5504c4d52d930310e48.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="../site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="../site_libs/bootstrap/bootstrap-5b4ad623e5705c0698d39aec6f10cf02.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+<script src="https://cdn.jsdelivr.net/npm/requirejs@2.3.6/require.min.js" integrity="sha384-c9c+LnTbwQ3aujuU7ULEPVvgLs+Fn6fJUvIGTsuu1ZcCf11fiEubah0ttpca4ntM sha384-6V1/AdqZRWk1KAlWbKBlGhN7VG4iE/yAZcO6NZPMF8od0vukrvr0tg4qY6NSrItx" crossorigin="anonymous"></script>
+
+<script type="application/javascript">define('jquery', [],function() {return window.jQuery;})</script>
+<script src="https://cdn.jsdelivr.net/npm/@jupyter-widgets/html-manager@*/dist/embed-amd.js" crossorigin="anonymous"></script>
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN" && texText && texText.data) {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+</head>
+
+<body class="nav-fixed quarto-light">
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a class="navbar-brand" href="../index.html">
+    <span class="navbar-title">Adaptive Learning KT</span>
+    </a>
+  </div>
+            <div id="quarto-search" class="" title="Search"></div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" role="menu" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll me-auto">
+  <li class="nav-item">
+    <a class="nav-link" href="../index.html"> 
+<span class="menu-text">Home</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../notebooks/01-eda.html"> 
+<span class="menu-text">01 EDA</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link active" href="../notebooks/02-irt-bkt.html" aria-current="page"> 
+<span class="menu-text">02 IRT+BKT</span></a>
+  </li>  
+</ul>
+          </div> <!-- /navcollapse -->
+            <div class="quarto-navbar-tools">
+</div>
+      </div> <!-- /container-fluid -->
+    </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
+<!-- sidebar -->
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">On this page</h2>
+   
+  <ul>
+  <li><a href="#はじめに-このノートブックの問い" id="toc-はじめに-このノートブックの問い" class="nav-link active" data-scroll-target="#はじめに-このノートブックの問い">はじめに — このノートブックの問い</a></li>
+  <li><a href="#セットアップ" id="toc-セットアップ" class="nav-link" data-scroll-target="#セットアップ">1. セットアップ</a></li>
+  <li><a href="#データの読み込みと前処理" id="toc-データの読み込みと前処理" class="nav-link" data-scroll-target="#データの読み込みと前処理">2. データの読み込みと前処理</a></li>
+  <li><a href="#irt-2pl-モデル" id="toc-irt-2pl-モデル" class="nav-link" data-scroll-target="#irt-2pl-モデル">3. IRT 2PL モデル</a>
+  <ul class="collapse">
+  <li><a href="#モデルの概要" id="toc-モデルの概要" class="nav-link" data-scroll-target="#モデルの概要">3.1 モデルの概要</a></li>
+  <li><a href="#モデルの構築と推論" id="toc-モデルの構築と推論" class="nav-link" data-scroll-target="#モデルの構築と推論">3.2 モデルの構築と推論</a></li>
+  <li><a href="#収束診断" id="toc-収束診断" class="nav-link" data-scroll-target="#収束診断">3.3 収束診断</a></li>
+  <li><a href="#パラメータの可視化" id="toc-パラメータの可視化" class="nav-link" data-scroll-target="#パラメータの可視化">3.4 パラメータの可視化</a></li>
+  <li><a href="#推定パラメータの妥当性検証" id="toc-推定パラメータの妥当性検証" class="nav-link" data-scroll-target="#推定パラメータの妥当性検証">3.5 推定パラメータの妥当性検証</a></li>
+  <li><a href="#出題戦略への示唆-zpd-の可視化" id="toc-出題戦略への示唆-zpd-の可視化" class="nav-link" data-scroll-target="#出題戦略への示唆-zpd-の可視化">3.6 出題戦略への示唆 — ZPD の可視化</a></li>
+  </ul></li>
+  <li><a href="#bkt-モデル" id="toc-bkt-モデル" class="nav-link" data-scroll-target="#bkt-モデル">4. BKT モデル</a>
+  <ul class="collapse">
+  <li><a href="#モデルの概要-1" id="toc-モデルの概要-1" class="nav-link" data-scroll-target="#モデルの概要-1">4.1 モデルの概要</a></li>
+  <li><a href="#学習" id="toc-学習" class="nav-link" data-scroll-target="#学習">4.2 学習</a></li>
+  <li><a href="#パラメータの可視化-1" id="toc-パラメータの可視化-1" class="nav-link" data-scroll-target="#パラメータの可視化-1">4.3 パラメータの可視化</a></li>
+  <li><a href="#習熟確率の推移" id="toc-習熟確率の推移" class="nav-link" data-scroll-target="#習熟確率の推移">4.4 習熟確率の推移</a></li>
+  <li><a href="#パラメータの妥当性検証" id="toc-パラメータの妥当性検証" class="nav-link" data-scroll-target="#パラメータの妥当性検証">4.5 パラメータの妥当性検証</a></li>
+  </ul></li>
+  <li><a href="#評価と比較" id="toc-評価と比較" class="nav-link" data-scroll-target="#評価と比較">5. 評価と比較</a>
+  <ul class="collapse">
+  <li><a href="#評価方法" id="toc-評価方法" class="nav-link" data-scroll-target="#評価方法">5.1 評価方法</a></li>
+  <li><a href="#within-user-temporal-split知識状態推定の評価" id="toc-within-user-temporal-split知識状態推定の評価" class="nav-link" data-scroll-target="#within-user-temporal-split知識状態推定の評価">5.2 Within-user temporal split（知識状態推定の評価）</a></li>
+  <li><a href="#user-level-split未知ユーザーでのベースライン" id="toc-user-level-split未知ユーザーでのベースライン" class="nav-link" data-scroll-target="#user-level-split未知ユーザーでのベースライン">5.3 User-level split（未知ユーザーでのベースライン）</a></li>
+  <li><a href="#キャリブレーション" id="toc-キャリブレーション" class="nav-link" data-scroll-target="#キャリブレーション">5.4 キャリブレーション</a></li>
+  <li><a href="#part-別の性能" id="toc-part-別の性能" class="nav-link" data-scroll-target="#part-別の性能">5.5 Part 別の性能</a></li>
+  </ul></li>
+  <li><a href="#考察" id="toc-考察" class="nav-link" data-scroll-target="#考察">6. 考察</a>
+  <ul class="collapse">
+  <li><a href="#実験結果のまとめ" id="toc-実験結果のまとめ" class="nav-link" data-scroll-target="#実験結果のまとめ">6.1 実験結果のまとめ</a></li>
+  <li><a href="#irt-の強みと限界" id="toc-irt-の強みと限界" class="nav-link" data-scroll-target="#irt-の強みと限界">6.2 IRT の強みと限界</a></li>
+  <li><a href="#bkt-の強みと限界" id="toc-bkt-の強みと限界" class="nav-link" data-scroll-target="#bkt-の強みと限界">6.3 BKT の強みと限界</a></li>
+  <li><a href="#出題戦略-04-に向けて" id="toc-出題戦略-04-に向けて" class="nav-link" data-scroll-target="#出題戦略-04-に向けて">6.4 出題戦略 (04) に向けて</a></li>
+  <li><a href="#深層-kt-03-で何を解決すべきか" id="toc-深層-kt-03-で何を解決すべきか" class="nav-link" data-scroll-target="#深層-kt-03-で何を解決すべきか">6.5 深層 KT (03) で何を解決すべきか</a></li>
+  </ul></li>
+  </ul>
+</nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">IRT 2PL + BKT ベースライン</h1>
+<p class="subtitle lead">知識状態の推定は出題戦略に使えるか？</p>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<section id="はじめに-このノートブックの問い" class="level2">
+<h2 class="anchored" data-anchor-id="はじめに-このノートブックの問い">はじめに — このノートブックの問い</h2>
+<p>EDA（ノートブック 01）で、3 つの重要な事実を確認した。</p>
+<ul>
+<li><strong>48% のユーザーが 10 問以下で離脱</strong>する。適切な問題を出せなければ学習は始まらない</li>
+<li><strong>Part 別正答率に大きな個人差</strong>がある。一律出題では「簡単すぎ/難しすぎ」が避けられない</li>
+<li><strong>学習曲線は存在する</strong>（序盤 50% → 100 問超で 65-70%）。知識状態は時系列で変化する</li>
+</ul>
+<p>これらの問題を解決するには、学習者ごとの <strong>スキル別知識状態</strong> を推定し、それに基づいて出題を最適化する必要がある。本ノートブックでは古典的な 2 つのモデルを実装し、以下の問いに答える。</p>
+<blockquote class="blockquote">
+<p><strong>IRT / BKT で推定した知識状態は、出題戦略の入力として十分か？</strong></p>
+</blockquote>
+<ol type="1">
+<li><strong>IRT 2PL</strong>（Item Response Theory）— ユーザーの能力 θ とスキルの難易度・識別力を同時推定。スナップショット型</li>
+<li><strong>BKT</strong>（Bayesian Knowledge Tracing）— スキルごとの習熟確率の <strong>時系列変化</strong> を追跡</li>
+</ol>
+<p>最終的に、テストセットでの予測精度を測定し、推定された知識状態が出題戦略（ノートブック 04）の入力として機能するかを検証する。深層 KT モデル（ノートブック 03）のベースラインも兼ねる。</p>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Note
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>IRT の MCMC 推論には 10〜20 分程度かかる。<code>execute: cache: true</code> により 2 回目以降はキャッシュから読み込まれる。</p>
+</div>
+</div>
+</section>
+<section id="セットアップ" class="level2">
+<h2 class="anchored" data-anchor-id="セットアップ">1. セットアップ</h2>
+<div id="setup" class="cell" data-execution_count="1">
+<details class="code-fold">
+<summary>コードを表示</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pathlib <span class="im">import</span> Path</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.font_manager <span class="im">as</span> fm</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.ticker <span class="im">as</span> ticker</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> polars <span class="im">as</span> pl</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="co"># --- Project paths ---</span></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>PROJECT_ROOT <span class="op">=</span> <span class="bu">next</span>(</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>    p <span class="cf">for</span> p <span class="kw">in</span> [Path.cwd(), <span class="op">*</span>Path.cwd().parents] <span class="cf">if</span> (p <span class="op">/</span> <span class="st">"pyproject.toml"</span>).exists()</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>RAW_DIR <span class="op">=</span> PROJECT_ROOT <span class="op">/</span> <span class="st">"data"</span> <span class="op">/</span> <span class="st">"raw"</span></span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>PROCESSED_DIR <span class="op">=</span> PROJECT_ROOT <span class="op">/</span> <span class="st">"data"</span> <span class="op">/</span> <span class="st">"processed"</span></span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>N_USERS <span class="op">=</span> <span class="dv">5_000</span></span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>SEED <span class="op">=</span> <span class="dv">42</span></span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a><span class="co"># --- Japanese font ---</span></span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>jp_fonts <span class="op">=</span> [</span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a>    f.name <span class="cf">for</span> f <span class="kw">in</span> fm.fontManager.ttflist</span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="st">"Hiragino"</span> <span class="kw">in</span> f.name <span class="kw">or</span> <span class="st">"Gothic"</span> <span class="kw">in</span> f.name <span class="kw">or</span> <span class="st">"Noto Sans CJK"</span> <span class="kw">in</span> f.name</span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> jp_fonts:</span>
+<span id="cb1-24"><a href="#cb1-24" aria-hidden="true" tabindex="-1"></a>    plt.rcParams[<span class="st">"font.family"</span>] <span class="op">=</span> jp_fonts[<span class="dv">0</span>]</span>
+<span id="cb1-25"><a href="#cb1-25" aria-hidden="true" tabindex="-1"></a>plt.rcParams[<span class="st">"axes.unicode_minus"</span>] <span class="op">=</span> <span class="va">False</span></span>
+<span id="cb1-26"><a href="#cb1-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-27"><a href="#cb1-27" aria-hidden="true" tabindex="-1"></a><span class="co"># --- Palette ---</span></span>
+<span id="cb1-28"><a href="#cb1-28" aria-hidden="true" tabindex="-1"></a>BLUE <span class="op">=</span> <span class="st">"#4C72B0"</span></span>
+<span id="cb1-29"><a href="#cb1-29" aria-hidden="true" tabindex="-1"></a>ORANGE <span class="op">=</span> <span class="st">"#DD8452"</span></span>
+<span id="cb1-30"><a href="#cb1-30" aria-hidden="true" tabindex="-1"></a>GREEN <span class="op">=</span> <span class="st">"#55A868"</span></span>
+<span id="cb1-31"><a href="#cb1-31" aria-hidden="true" tabindex="-1"></a>RED <span class="op">=</span> <span class="st">"#C44E52"</span></span>
+<span id="cb1-32"><a href="#cb1-32" aria-hidden="true" tabindex="-1"></a>PURPLE <span class="op">=</span> <span class="st">"#8172B3"</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+</div>
+</section>
+<section id="データの読み込みと前処理" class="level2">
+<h2 class="anchored" data-anchor-id="データの読み込みと前処理">2. データの読み込みと前処理</h2>
+<div id="load-data" class="cell" data-execution_count="2">
+<details class="code-fold">
+<summary>コードを表示</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> src.data.sample <span class="im">import</span> build_sample</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> build_sample(RAW_DIR, n_users<span class="op">=</span>N_USERS, seed<span class="op">=</span>SEED, processed_dir<span class="op">=</span>PROCESSED_DIR)</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>df_raw <span class="op">=</span> result.df</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Raw: </span><span class="sc">{</span>df_raw<span class="sc">.</span>height<span class="sc">:,}</span><span class="ss"> rows, </span><span class="sc">{</span>df_raw[<span class="st">'user_id'</span>]<span class="sc">.</span>n_unique()<span class="sc">:,}</span><span class="ss"> users"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>Raw: 555,315 rows, 5,000 users</code></pre>
+</div>
+</div>
+<p>EDA で導出した前処理方針をパイプラインとして適用する。</p>
+<ul>
+<li>系列長 10 未満のユーザーを除外（Casual 層の離脱ノイズを排除）</li>
+<li><code>elapsed_time</code> &lt; 1 秒の行を除外（推測行動）、&gt; 300 秒でクリッピング（放置）</li>
+<li><code>correct</code> が null の行を除外</li>
+<li>系列長 2,000 でトランケーション（上位 1% のトリミング）</li>
+<li><code>tags</code> を explode し <code>concept</code> カラムに展開（BKT の単一スキル要件に対応）</li>
+<li>ユーザー単位で train / val / test = 70 / 15 / 15 に分割（情報リーク防止）</li>
+</ul>
+<div id="preprocess" class="cell" data-execution_count="3">
+<details class="code-fold">
+<summary>コードを表示</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> src.features.preprocess <span class="im">import</span> preprocess_pipeline</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>split <span class="op">=</span> preprocess_pipeline(df_raw, seed<span class="op">=</span>SEED)</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> name, sdf <span class="kw">in</span> [(<span class="st">"train"</span>, split.train), (<span class="st">"val"</span>, split.val), (<span class="st">"test"</span>, split.test)]:</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>    n_u <span class="op">=</span> sdf[<span class="st">"user_id"</span>].n_unique()</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>    n_r <span class="op">=</span> sdf.height</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  </span><span class="sc">{</span>name<span class="sc">:5s}</span><span class="ss">: </span><span class="sc">{</span>n_u<span class="sc">:&gt;5,}</span><span class="ss"> users, </span><span class="sc">{</span>n_r<span class="sc">:&gt;9,}</span><span class="ss"> rows"</span>)</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  concepts: </span><span class="sc">{</span>split<span class="sc">.</span>n_concepts<span class="sc">}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>  train: 1,952 users,   755,885 rows
+  val  :   418 users,   178,756 rows
+  test :   420 users,   158,614 rows
+  concepts: 188</code></pre>
+</div>
+</div>
+</section>
+<section id="irt-2pl-モデル" class="level2">
+<h2 class="anchored" data-anchor-id="irt-2pl-モデル">3. IRT 2PL モデル</h2>
+<section id="モデルの概要" class="level3">
+<h3 class="anchored" data-anchor-id="モデルの概要">3.1 モデルの概要</h3>
+<p>IRT 2PL は以下の確率モデルで正答確率を表現する。</p>
+<p><span class="math display">\[
+P(\text{correct} = 1 \mid \theta_i, a_j, b_j) = \sigma\bigl(a_j (\theta_i - b_j)\bigr)
+\]</span></p>
+<ul>
+<li><span class="math inline">\(\theta_i\)</span>: ユーザー <span class="math inline">\(i\)</span> の能力（高いほど正答しやすい）</li>
+<li><span class="math inline">\(b_j\)</span>: コンセプト <span class="math inline">\(j\)</span> の難易度（高いほど正答しにくい）</li>
+<li><span class="math inline">\(a_j\)</span>: コンセプト <span class="math inline">\(j\)</span> の識別力（能力差をどれだけ反映するか）</li>
+</ul>
+<p>PyMC で NUTS（MCMC）によるベイズ推論を行う。計算コストの制約から、訓練セットの 500 ユーザーをサブサンプルして推定する。</p>
+</section>
+<section id="モデルの構築と推論" class="level3">
+<h3 class="anchored" data-anchor-id="モデルの構築と推論">3.2 モデルの構築と推論</h3>
+<div id="cell-irt-fit" class="cell" data-execution_count="4">
+<details class="code-fold">
+<summary>コードを表示</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> src.models.irt <span class="im">import</span> fit_irt_2pl</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>irt_result <span class="op">=</span> fit_irt_2pl(</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    split.train,</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>    n_samples<span class="op">=</span><span class="dv">1000</span>,</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>    n_tune<span class="op">=</span><span class="dv">1000</span>,</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>    chains<span class="op">=</span><span class="dv">2</span>,</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>    cores<span class="op">=</span><span class="dv">2</span>,</span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>    seed<span class="op">=</span>SEED,</span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>    max_users<span class="op">=</span><span class="dv">500</span>,</span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"IRT fitted: </span><span class="sc">{</span><span class="bu">len</span>(irt_result.user_ids)<span class="sc">}</span><span class="ss"> users, </span><span class="sc">{</span><span class="bu">len</span>(irt_result.concept_ids)<span class="sc">}</span><span class="ss"> concepts"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div id="irt-fit" class="cell-output cell-output-display">
+<script type="application/vnd.jupyter.widget-view+json">
+{"model_id":"f97d51c4474a4270b67829965b1233d7","version_major":2,"version_minor":0,"quarto_mimetype":"application/vnd.jupyter.widget-view+json"}
+</script>
+</div>
+</div>
+</section>
+<section id="収束診断" class="level3">
+<h3 class="anchored" data-anchor-id="収束診断">3.3 収束診断</h3>
+<div id="cell-irt-diagnostics" class="cell" data-execution_count="5">
+<details class="code-fold">
+<summary>コードを表示</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> arviz <span class="im">as</span> az</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>az.plot_trace(irt_result.trace, var_names<span class="op">=</span>[<span class="st">"difficulty"</span>], compact<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-display">
+<div id="irt-diagnostics" class="quarto-figure quarto-figure-center anchored">
+<figure class="figure">
+<p><img src="02-irt-bkt_files/figure-html/irt-diagnostics-output-1.png" width="1142" height="181" class="figure-img"></p>
+<figcaption>IRT 2PL トレースプロット（difficulty パラメータの一部）</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<div id="irt-rhat" class="cell" data-execution_count="6">
+<details class="code-fold">
+<summary>コードを表示</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>summary <span class="op">=</span> az.summary(irt_result.trace, var_names<span class="op">=</span>[<span class="st">"theta"</span>, <span class="st">"difficulty"</span>, <span class="st">"log_disc"</span>])</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>rhat_max <span class="op">=</span> summary[<span class="st">"r_hat"</span>].<span class="bu">max</span>()</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>rhat_bad <span class="op">=</span> (summary[<span class="st">"r_hat"</span>] <span class="op">&gt;</span> <span class="fl">1.05</span>).<span class="bu">sum</span>()</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"R-hat: max=</span><span class="sc">{</span>rhat_max<span class="sc">:.3f}</span><span class="ss">, &gt;1.05 の数=</span><span class="sc">{</span>rhat_bad<span class="sc">}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>R-hat: max=1.010, &gt;1.05 の数=0</code></pre>
+</div>
+</div>
+</section>
+<section id="パラメータの可視化" class="level3">
+<h3 class="anchored" data-anchor-id="パラメータの可視化">3.4 パラメータの可視化</h3>
+<div id="cell-irt-params" class="cell" data-execution_count="7">
+<details class="code-fold">
+<summary>コードを表示</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="dv">5</span>))</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Difficulty vs Discrimination scatter</span></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>ax <span class="op">=</span> axes[<span class="dv">0</span>]</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>ax.scatter(irt_result.difficulty, irt_result.discrimination, alpha<span class="op">=</span><span class="fl">0.6</span>, s<span class="op">=</span><span class="dv">20</span>, c<span class="op">=</span>BLUE)</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>ax.set_xlabel(<span class="st">"難易度 (b)"</span>)</span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>ax.set_ylabel(<span class="st">"識別力 (a)"</span>)</span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>ax.set_title(<span class="st">"コンセプト別パラメータ"</span>)</span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>ax.axhline(<span class="fl">1.0</span>, color<span class="op">=</span><span class="st">"gray"</span>, linestyle<span class="op">=</span><span class="st">"--"</span>, alpha<span class="op">=</span><span class="fl">0.5</span>)</span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a>ax.axvline(<span class="fl">0.0</span>, color<span class="op">=</span><span class="st">"gray"</span>, linestyle<span class="op">=</span><span class="st">"--"</span>, alpha<span class="op">=</span><span class="fl">0.5</span>)</span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a><span class="co"># Ability histogram</span></span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a>ax <span class="op">=</span> axes[<span class="dv">1</span>]</span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a>ax.hist(irt_result.theta, bins<span class="op">=</span><span class="dv">30</span>, color<span class="op">=</span>BLUE, alpha<span class="op">=</span><span class="fl">0.7</span>, edgecolor<span class="op">=</span><span class="st">"white"</span>)</span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a>ax.set_xlabel(<span class="st">"能力 (θ)"</span>)</span>
+<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a>ax.set_ylabel(<span class="st">"ユーザー数"</span>)</span>
+<span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a>ax.set_title(<span class="st">"ユーザー能力分布"</span>)</span>
+<span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a>ax.axvline(<span class="fl">0.0</span>, color<span class="op">=</span><span class="st">"gray"</span>, linestyle<span class="op">=</span><span class="st">"--"</span>, alpha<span class="op">=</span><span class="fl">0.5</span>)</span>
+<span id="cb10-19"><a href="#cb10-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-20"><a href="#cb10-20" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb10-21"><a href="#cb10-21" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-display">
+<div id="irt-params" class="quarto-figure quarto-figure-center anchored">
+<figure class="figure">
+<p><img src="02-irt-bkt_files/figure-html/irt-params-output-1.png" width="1142" height="469" class="figure-img"></p>
+<figcaption>IRT 2PL — コンセプト別 難易度 vs 識別力 / ユーザー能力分布</figcaption>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="推定パラメータの妥当性検証" class="level3">
+<h3 class="anchored" data-anchor-id="推定パラメータの妥当性検証">3.5 推定パラメータの妥当性検証</h3>
+<p>IRT が推定した θ や b は、実際のデータと整合しているか？</p>
+<div id="cell-irt-validation" class="cell" data-execution_count="8">
+<details class="code-fold">
+<summary>コードを表示</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="co"># θ vs 実際の正答率（IRT 学習に使ったユーザー）</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>irt_train_users <span class="op">=</span> <span class="bu">set</span>(irt_result.user_ids.tolist())</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>train_sub <span class="op">=</span> split.train.<span class="bu">filter</span>(pl.col(<span class="st">"user_id"</span>).is_in(irt_train_users))</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>user_acc <span class="op">=</span> (</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>    train_sub.group_by(<span class="st">"user_id"</span>)</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>    .agg(pl.col(<span class="st">"correct"</span>).mean().alias(<span class="st">"accuracy"</span>))</span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>    .sort(<span class="st">"user_id"</span>)</span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a>theta_map <span class="op">=</span> {<span class="bu">int</span>(uid): <span class="bu">float</span>(th) <span class="cf">for</span> uid, th <span class="kw">in</span> <span class="bu">zip</span>(irt_result.user_ids, irt_result.theta, strict<span class="op">=</span><span class="va">True</span>)}</span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a>user_acc <span class="op">=</span> user_acc.with_columns(</span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a>    pl.col(<span class="st">"user_id"</span>).map_elements(<span class="kw">lambda</span> u: theta_map.get(<span class="bu">int</span>(u), <span class="fl">0.0</span>), return_dtype<span class="op">=</span>pl.Float64).alias(<span class="st">"theta"</span>)</span>
+<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb11-14"><a href="#cb11-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-15"><a href="#cb11-15" aria-hidden="true" tabindex="-1"></a><span class="co"># b vs コンセプト別正答率</span></span>
+<span id="cb11-16"><a href="#cb11-16" aria-hidden="true" tabindex="-1"></a>concept_acc <span class="op">=</span> (</span>
+<span id="cb11-17"><a href="#cb11-17" aria-hidden="true" tabindex="-1"></a>    train_sub.group_by(<span class="st">"concept"</span>)</span>
+<span id="cb11-18"><a href="#cb11-18" aria-hidden="true" tabindex="-1"></a>    .agg(pl.col(<span class="st">"correct"</span>).mean().alias(<span class="st">"accuracy"</span>))</span>
+<span id="cb11-19"><a href="#cb11-19" aria-hidden="true" tabindex="-1"></a>    .sort(<span class="st">"concept"</span>)</span>
+<span id="cb11-20"><a href="#cb11-20" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb11-21"><a href="#cb11-21" aria-hidden="true" tabindex="-1"></a>diff_map <span class="op">=</span> {<span class="bu">int</span>(cid): <span class="bu">float</span>(d) <span class="cf">for</span> cid, d <span class="kw">in</span> <span class="bu">zip</span>(irt_result.concept_ids, irt_result.difficulty, strict<span class="op">=</span><span class="va">True</span>)}</span>
+<span id="cb11-22"><a href="#cb11-22" aria-hidden="true" tabindex="-1"></a>concept_acc <span class="op">=</span> concept_acc.with_columns(</span>
+<span id="cb11-23"><a href="#cb11-23" aria-hidden="true" tabindex="-1"></a>    pl.col(<span class="st">"concept"</span>).map_elements(<span class="kw">lambda</span> c: diff_map.get(<span class="bu">int</span>(c), <span class="fl">0.0</span>), return_dtype<span class="op">=</span>pl.Float64).alias(<span class="st">"difficulty"</span>)</span>
+<span id="cb11-24"><a href="#cb11-24" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb11-25"><a href="#cb11-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-26"><a href="#cb11-26" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="dv">5</span>))</span>
+<span id="cb11-27"><a href="#cb11-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-28"><a href="#cb11-28" aria-hidden="true" tabindex="-1"></a><span class="co"># θ vs accuracy</span></span>
+<span id="cb11-29"><a href="#cb11-29" aria-hidden="true" tabindex="-1"></a>ax <span class="op">=</span> axes[<span class="dv">0</span>]</span>
+<span id="cb11-30"><a href="#cb11-30" aria-hidden="true" tabindex="-1"></a>ax.scatter(user_acc[<span class="st">"theta"</span>].to_numpy(), user_acc[<span class="st">"accuracy"</span>].to_numpy(), alpha<span class="op">=</span><span class="fl">0.3</span>, s<span class="op">=</span><span class="dv">10</span>, c<span class="op">=</span>BLUE)</span>
+<span id="cb11-31"><a href="#cb11-31" aria-hidden="true" tabindex="-1"></a>corr_theta <span class="op">=</span> np.corrcoef(user_acc[<span class="st">"theta"</span>].to_numpy(), user_acc[<span class="st">"accuracy"</span>].to_numpy())[<span class="dv">0</span>, <span class="dv">1</span>]</span>
+<span id="cb11-32"><a href="#cb11-32" aria-hidden="true" tabindex="-1"></a>ax.set_xlabel(<span class="st">"推定能力 (θ)"</span>)</span>
+<span id="cb11-33"><a href="#cb11-33" aria-hidden="true" tabindex="-1"></a>ax.set_ylabel(<span class="st">"実際の正答率"</span>)</span>
+<span id="cb11-34"><a href="#cb11-34" aria-hidden="true" tabindex="-1"></a>ax.set_title(<span class="ss">f"θ vs 正答率 (r = </span><span class="sc">{</span>corr_theta<span class="sc">:.3f}</span><span class="ss">)"</span>)</span>
+<span id="cb11-35"><a href="#cb11-35" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-36"><a href="#cb11-36" aria-hidden="true" tabindex="-1"></a><span class="co"># b vs accuracy (expect negative correlation)</span></span>
+<span id="cb11-37"><a href="#cb11-37" aria-hidden="true" tabindex="-1"></a>ax <span class="op">=</span> axes[<span class="dv">1</span>]</span>
+<span id="cb11-38"><a href="#cb11-38" aria-hidden="true" tabindex="-1"></a>ax.scatter(concept_acc[<span class="st">"difficulty"</span>].to_numpy(), concept_acc[<span class="st">"accuracy"</span>].to_numpy(), alpha<span class="op">=</span><span class="fl">0.5</span>, s<span class="op">=</span><span class="dv">20</span>, c<span class="op">=</span>ORANGE)</span>
+<span id="cb11-39"><a href="#cb11-39" aria-hidden="true" tabindex="-1"></a>corr_diff <span class="op">=</span> np.corrcoef(concept_acc[<span class="st">"difficulty"</span>].to_numpy(), concept_acc[<span class="st">"accuracy"</span>].to_numpy())[<span class="dv">0</span>, <span class="dv">1</span>]</span>
+<span id="cb11-40"><a href="#cb11-40" aria-hidden="true" tabindex="-1"></a>ax.set_xlabel(<span class="st">"推定難易度 (b)"</span>)</span>
+<span id="cb11-41"><a href="#cb11-41" aria-hidden="true" tabindex="-1"></a>ax.set_ylabel(<span class="st">"コンセプト別正答率"</span>)</span>
+<span id="cb11-42"><a href="#cb11-42" aria-hidden="true" tabindex="-1"></a>ax.set_title(<span class="ss">f"難易度 vs 正答率 (r = </span><span class="sc">{</span>corr_diff<span class="sc">:.3f}</span><span class="ss">)"</span>)</span>
+<span id="cb11-43"><a href="#cb11-43" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-44"><a href="#cb11-44" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb11-45"><a href="#cb11-45" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb11-46"><a href="#cb11-46" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-47"><a href="#cb11-47" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"θ と正答率の相関: r = </span><span class="sc">{</span>corr_theta<span class="sc">:.3f}</span><span class="ss">"</span>)</span>
+<span id="cb11-48"><a href="#cb11-48" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"難易度と正答率の相関: r = </span><span class="sc">{</span>corr_diff<span class="sc">:.3f}</span><span class="ss"> (負であるほど妥当)"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-display">
+<div id="irt-validation" class="quarto-figure quarto-figure-center anchored">
+<figure class="figure">
+<p><img src="02-irt-bkt_files/figure-html/irt-validation-output-1.png" width="1142" height="468" class="figure-img"></p>
+<figcaption>IRT パラメータの妥当性 — 推定値 vs 実測値</figcaption>
+</figure>
+</div>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>θ と正答率の相関: r = 0.981
+難易度と正答率の相関: r = -0.801 (負であるほど妥当)</code></pre>
+</div>
+</div>
+</section>
+<section id="出題戦略への示唆-zpd-の可視化" class="level3">
+<h3 class="anchored" data-anchor-id="出題戦略への示唆-zpd-の可視化">3.6 出題戦略への示唆 — ZPD の可視化</h3>
+<p>IRT の最大の利点は、<span class="math inline">\(\theta_i - b_j\)</span> の差分から <strong>Zone of Proximal Development（最近接発達領域）</strong> を計算できることである。差分が小さいコンセプトこそ、その学習者にとって「難しすぎず易しすぎない」最適な出題対象となる。</p>
+<div id="cell-irt-zpd" class="cell" data-execution_count="9">
+<details class="code-fold">
+<summary>コードを表示</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="co"># サンプルユーザー 100 人で ZPD 分析</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>sample_users <span class="op">=</span> irt_result.user_ids[:<span class="dv">100</span>]</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>zpd_margin <span class="op">=</span> <span class="fl">0.5</span>  <span class="co"># |θ - b| &lt; margin を ZPD とする</span></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>zpd_fracs <span class="op">=</span> []</span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> uid <span class="kw">in</span> sample_users:</span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>    th <span class="op">=</span> irt_result.theta[np.where(irt_result.user_ids <span class="op">==</span> uid)[<span class="dv">0</span>][<span class="dv">0</span>]]</span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>    gaps <span class="op">=</span> np.<span class="bu">abs</span>(th <span class="op">-</span> irt_result.difficulty)</span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>    too_easy <span class="op">=</span> np.<span class="bu">sum</span>(gaps <span class="op">&gt;</span> zpd_margin <span class="op">*</span> <span class="dv">2</span>)  <span class="co"># θ &gt;&gt; b</span></span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a>    zpd <span class="op">=</span> np.<span class="bu">sum</span>(gaps <span class="op">&lt;=</span> zpd_margin)</span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a>    too_hard <span class="op">=</span> np.<span class="bu">sum</span>(gaps <span class="op">&gt;</span> zpd_margin <span class="op">*</span> <span class="dv">2</span>)  <span class="co"># b &gt;&gt; θ (re-check direction)</span></span>
+<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a>    n_concepts <span class="op">=</span> <span class="bu">len</span>(irt_result.difficulty)</span>
+<span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-14"><a href="#cb13-14" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Classify by sign of θ - b</span></span>
+<span id="cb13-15"><a href="#cb13-15" aria-hidden="true" tabindex="-1"></a>    diffs <span class="op">=</span> th <span class="op">-</span> irt_result.difficulty</span>
+<span id="cb13-16"><a href="#cb13-16" aria-hidden="true" tabindex="-1"></a>    easy_frac <span class="op">=</span> np.mean(diffs <span class="op">&gt;</span> zpd_margin)   <span class="co"># θ が b より十分高い</span></span>
+<span id="cb13-17"><a href="#cb13-17" aria-hidden="true" tabindex="-1"></a>    zpd_frac <span class="op">=</span> np.mean(np.<span class="bu">abs</span>(diffs) <span class="op">&lt;=</span> zpd_margin)</span>
+<span id="cb13-18"><a href="#cb13-18" aria-hidden="true" tabindex="-1"></a>    hard_frac <span class="op">=</span> np.mean(diffs <span class="op">&lt;</span> <span class="op">-</span>zpd_margin)  <span class="co"># b が θ より十分高い</span></span>
+<span id="cb13-19"><a href="#cb13-19" aria-hidden="true" tabindex="-1"></a>    zpd_fracs.append({<span class="st">"user_id"</span>: <span class="bu">int</span>(uid), <span class="st">"theta"</span>: <span class="bu">float</span>(th),</span>
+<span id="cb13-20"><a href="#cb13-20" aria-hidden="true" tabindex="-1"></a>                       <span class="st">"easy"</span>: easy_frac, <span class="st">"zpd"</span>: zpd_frac, <span class="st">"hard"</span>: hard_frac})</span>
+<span id="cb13-21"><a href="#cb13-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-22"><a href="#cb13-22" aria-hidden="true" tabindex="-1"></a>zpd_df <span class="op">=</span> pl.DataFrame(zpd_fracs).sort(<span class="st">"theta"</span>)</span>
+<span id="cb13-23"><a href="#cb13-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-24"><a href="#cb13-24" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">10</span>, <span class="dv">5</span>))</span>
+<span id="cb13-25"><a href="#cb13-25" aria-hidden="true" tabindex="-1"></a>thetas <span class="op">=</span> zpd_df[<span class="st">"theta"</span>].to_numpy()</span>
+<span id="cb13-26"><a href="#cb13-26" aria-hidden="true" tabindex="-1"></a>ax.bar(<span class="bu">range</span>(<span class="bu">len</span>(thetas)), zpd_df[<span class="st">"easy"</span>].to_numpy(), label<span class="op">=</span><span class="st">"簡単すぎる"</span>, color<span class="op">=</span>GREEN, alpha<span class="op">=</span><span class="fl">0.7</span>)</span>
+<span id="cb13-27"><a href="#cb13-27" aria-hidden="true" tabindex="-1"></a>ax.bar(<span class="bu">range</span>(<span class="bu">len</span>(thetas)), zpd_df[<span class="st">"zpd"</span>].to_numpy(),</span>
+<span id="cb13-28"><a href="#cb13-28" aria-hidden="true" tabindex="-1"></a>       bottom<span class="op">=</span>zpd_df[<span class="st">"easy"</span>].to_numpy(), label<span class="op">=</span><span class="ss">f"ZPD (|θ-b| ≤ </span><span class="sc">{</span>zpd_margin<span class="sc">}</span><span class="ss">)"</span>, color<span class="op">=</span>BLUE, alpha<span class="op">=</span><span class="fl">0.7</span>)</span>
+<span id="cb13-29"><a href="#cb13-29" aria-hidden="true" tabindex="-1"></a>ax.bar(<span class="bu">range</span>(<span class="bu">len</span>(thetas)), zpd_df[<span class="st">"hard"</span>].to_numpy(),</span>
+<span id="cb13-30"><a href="#cb13-30" aria-hidden="true" tabindex="-1"></a>       bottom<span class="op">=</span>(zpd_df[<span class="st">"easy"</span>] <span class="op">+</span> zpd_df[<span class="st">"zpd"</span>]).to_numpy(), label<span class="op">=</span><span class="st">"難しすぎる"</span>, color<span class="op">=</span>RED, alpha<span class="op">=</span><span class="fl">0.7</span>)</span>
+<span id="cb13-31"><a href="#cb13-31" aria-hidden="true" tabindex="-1"></a>ax.set_xlabel(<span class="st">"ユーザー（θ 順）"</span>)</span>
+<span id="cb13-32"><a href="#cb13-32" aria-hidden="true" tabindex="-1"></a>ax.set_ylabel(<span class="st">"コンセプトの割合"</span>)</span>
+<span id="cb13-33"><a href="#cb13-33" aria-hidden="true" tabindex="-1"></a>ax.set_title(<span class="st">"ユーザーごとの出題難易度分布"</span>)</span>
+<span id="cb13-34"><a href="#cb13-34" aria-hidden="true" tabindex="-1"></a>ax.legend(loc<span class="op">=</span><span class="st">"upper left"</span>)</span>
+<span id="cb13-35"><a href="#cb13-35" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb13-36"><a href="#cb13-36" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb13-37"><a href="#cb13-37" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-38"><a href="#cb13-38" aria-hidden="true" tabindex="-1"></a>mean_zpd <span class="op">=</span> zpd_df[<span class="st">"zpd"</span>].mean()</span>
+<span id="cb13-39"><a href="#cb13-39" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"ZPD に該当するコンセプトの平均割合: </span><span class="sc">{</span>mean_zpd<span class="sc">:.1%}</span><span class="ss">"</span>)</span>
+<span id="cb13-40"><a href="#cb13-40" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"→ 一律出題では大半が「簡単すぎる」か「難しすぎる」に分類される"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-display">
+<div id="irt-zpd" class="quarto-figure quarto-figure-center anchored">
+<figure class="figure">
+<p><img src="02-irt-bkt_files/figure-html/irt-zpd-output-1.png" width="950" height="468" class="figure-img"></p>
+<figcaption>ZPD 分析 — ユーザーごとの最適難易度帯にあるコンセプトの割合</figcaption>
+</figure>
+</div>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>ZPD に該当するコンセプトの平均割合: 35.1%
+→ 一律出題では大半が「簡単すぎる」か「難しすぎる」に分類される</code></pre>
+</div>
+</div>
+</section>
+</section>
+<section id="bkt-モデル" class="level2">
+<h2 class="anchored" data-anchor-id="bkt-モデル">4. BKT モデル</h2>
+<section id="モデルの概要-1" class="level3">
+<h3 class="anchored" data-anchor-id="モデルの概要-1">4.1 モデルの概要</h3>
+<p>BKT はスキルごとに 4 つのパラメータを持つ隠れマルコフモデルである。IRT と異なり、学習による <strong>知識状態の時系列変化</strong> を追跡できる。</p>
+<ul>
+<li><span class="math inline">\(P(L_0)\)</span>: 初期習熟確率（最初から知っている確率）</li>
+<li><span class="math inline">\(P(T)\)</span>: 遷移確率（1 ステップで未習得→習得に移る確率）</li>
+<li><span class="math inline">\(P(G)\)</span>: 推測確率（未習得なのに正答する確率）</li>
+<li><span class="math inline">\(P(S)\)</span>: 失念確率（習得しているのに誤答する確率）</li>
+</ul>
+<p>pyBKT で EM アルゴリズムにより推定する。</p>
+</section>
+<section id="学習" class="level3">
+<h3 class="anchored" data-anchor-id="学習">4.2 学習</h3>
+<div id="bkt-fit" class="cell" data-execution_count="10">
+<details class="code-fold">
+<summary>コードを表示</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> src.models.bkt <span class="im">import</span> fit_bkt, extract_params</span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>bkt_result <span class="op">=</span> fit_bkt(split.train, seed<span class="op">=</span>SEED, min_interactions<span class="op">=</span><span class="dv">50</span>)</span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"BKT fitted: </span><span class="sc">{</span><span class="bu">len</span>(bkt_result.skills)<span class="sc">}</span><span class="ss"> skills"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>BKT fitted: 186 skills</code></pre>
+</div>
+</div>
+</section>
+<section id="パラメータの可視化-1" class="level3">
+<h3 class="anchored" data-anchor-id="パラメータの可視化-1">4.3 パラメータの可視化</h3>
+<div id="cell-bkt-params" class="cell" data-execution_count="11">
+<details class="code-fold">
+<summary>コードを表示</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a>params_df <span class="op">=</span> extract_params(bkt_result)</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Sort by learn rate and take top 30 for readability</span></span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>top <span class="op">=</span> params_df.sort(<span class="st">"learn"</span>, descending<span class="op">=</span><span class="va">True</span>).head(<span class="dv">30</span>)</span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>param_cols <span class="op">=</span> [<span class="st">"prior"</span>, <span class="st">"learn"</span>, <span class="st">"guess"</span>, <span class="st">"slip"</span>]</span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>mat <span class="op">=</span> top.select(param_cols).to_numpy()</span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a>labels <span class="op">=</span> top[<span class="st">"skill"</span>].to_list()</span>
+<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-9"><a href="#cb17-9" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">8</span>, <span class="dv">10</span>))</span>
+<span id="cb17-10"><a href="#cb17-10" aria-hidden="true" tabindex="-1"></a>im <span class="op">=</span> ax.imshow(mat, aspect<span class="op">=</span><span class="st">"auto"</span>, cmap<span class="op">=</span><span class="st">"YlOrRd"</span>, vmin<span class="op">=</span><span class="dv">0</span>, vmax<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb17-11"><a href="#cb17-11" aria-hidden="true" tabindex="-1"></a>ax.set_xticks(<span class="bu">range</span>(<span class="bu">len</span>(param_cols)))</span>
+<span id="cb17-12"><a href="#cb17-12" aria-hidden="true" tabindex="-1"></a>ax.set_xticklabels([<span class="st">"P(L₀)"</span>, <span class="st">"P(T)"</span>, <span class="st">"P(G)"</span>, <span class="st">"P(S)"</span>])</span>
+<span id="cb17-13"><a href="#cb17-13" aria-hidden="true" tabindex="-1"></a>ax.set_yticks(<span class="bu">range</span>(<span class="bu">len</span>(labels)))</span>
+<span id="cb17-14"><a href="#cb17-14" aria-hidden="true" tabindex="-1"></a>ax.set_yticklabels(labels, fontsize<span class="op">=</span><span class="dv">8</span>)</span>
+<span id="cb17-15"><a href="#cb17-15" aria-hidden="true" tabindex="-1"></a>ax.set_title(<span class="st">"BKT パラメータ（learn rate 上位 30 スキル）"</span>)</span>
+<span id="cb17-16"><a href="#cb17-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-17"><a href="#cb17-17" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(mat.shape[<span class="dv">0</span>]):</span>
+<span id="cb17-18"><a href="#cb17-18" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> j <span class="kw">in</span> <span class="bu">range</span>(mat.shape[<span class="dv">1</span>]):</span>
+<span id="cb17-19"><a href="#cb17-19" aria-hidden="true" tabindex="-1"></a>        ax.text(j, i, <span class="ss">f"</span><span class="sc">{</span>mat[i, j]<span class="sc">:.2f}</span><span class="ss">"</span>, ha<span class="op">=</span><span class="st">"center"</span>, va<span class="op">=</span><span class="st">"center"</span>, fontsize<span class="op">=</span><span class="dv">7</span>)</span>
+<span id="cb17-20"><a href="#cb17-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-21"><a href="#cb17-21" aria-hidden="true" tabindex="-1"></a>plt.colorbar(im, ax<span class="op">=</span>ax, shrink<span class="op">=</span><span class="fl">0.6</span>)</span>
+<span id="cb17-22"><a href="#cb17-22" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb17-23"><a href="#cb17-23" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb17-24"><a href="#cb17-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-25"><a href="#cb17-25" aria-hidden="true" tabindex="-1"></a><span class="co"># learn rate の最高・最低スキルを特定（後続セルで参照）</span></span>
+<span id="cb17-26"><a href="#cb17-26" aria-hidden="true" tabindex="-1"></a>params_sorted <span class="op">=</span> params_df.sort(<span class="st">"learn"</span>, descending<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb17-27"><a href="#cb17-27" aria-hidden="true" tabindex="-1"></a>high_learn_skill <span class="op">=</span> params_sorted[<span class="st">"skill"</span>][<span class="dv">0</span>]</span>
+<span id="cb17-28"><a href="#cb17-28" aria-hidden="true" tabindex="-1"></a>low_learn_skill <span class="op">=</span> params_sorted[<span class="st">"skill"</span>][<span class="op">-</span><span class="dv">1</span>]</span>
+<span id="cb17-29"><a href="#cb17-29" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"learn rate 最高: skill </span><span class="sc">{</span>high_learn_skill<span class="sc">}</span><span class="ss"> (</span><span class="sc">{</span>params_sorted[<span class="st">'learn'</span>][<span class="dv">0</span>]<span class="sc">:.3f}</span><span class="ss">)"</span>)</span>
+<span id="cb17-30"><a href="#cb17-30" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"learn rate 最低: skill </span><span class="sc">{</span>low_learn_skill<span class="sc">}</span><span class="ss"> (</span><span class="sc">{</span>params_sorted[<span class="st">'learn'</span>][<span class="op">-</span><span class="dv">1</span>]<span class="sc">:.3f}</span><span class="ss">)"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-display">
+<div id="bkt-params" class="quarto-figure quarto-figure-center anchored">
+<figure class="figure">
+<p><img src="02-irt-bkt_files/figure-html/bkt-params-output-1.png" width="710" height="950" class="figure-img"></p>
+<figcaption>BKT パラメータ — 主要スキルのヒートマップ</figcaption>
+</figure>
+</div>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>learn rate 最高: skill 173 (0.995)
+learn rate 最低: skill 94 (0.000)</code></pre>
+</div>
+</div>
+</section>
+<section id="習熟確率の推移" class="level3">
+<h3 class="anchored" data-anchor-id="習熟確率の推移">4.4 習熟確率の推移</h3>
+<p>BKT の最大の特徴は、学習者のスキル別習熟確率 P(mastery) が系列内で変化することである。代表的なスキルについて、ユーザーの解答を重ねるにつれて P(mastery) がどう推移するかを確認する。</p>
+<div id="cell-bkt-mastery" class="cell" data-execution_count="12">
+<details class="code-fold">
+<summary>コードを表示</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb19"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> _compute_mastery(responses: <span class="bu">list</span>[<span class="bu">int</span>], prior: <span class="bu">float</span>, learn: <span class="bu">float</span>, guess: <span class="bu">float</span>, slip: <span class="bu">float</span>) <span class="op">-&gt;</span> <span class="bu">list</span>[<span class="bu">float</span>]:</span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Forward algorithm for BKT P(mastery) given a sequence of 0/1 responses."""</span></span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>    p_know <span class="op">=</span> prior</span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a>    result <span class="op">=</span> []</span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> r <span class="kw">in</span> responses:</span>
+<span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a>        p_correct_know <span class="op">=</span> <span class="dv">1</span> <span class="op">-</span> slip</span>
+<span id="cb19-7"><a href="#cb19-7" aria-hidden="true" tabindex="-1"></a>        p_correct_not <span class="op">=</span> guess</span>
+<span id="cb19-8"><a href="#cb19-8" aria-hidden="true" tabindex="-1"></a>        p_correct <span class="op">=</span> p_know <span class="op">*</span> p_correct_know <span class="op">+</span> (<span class="dv">1</span> <span class="op">-</span> p_know) <span class="op">*</span> p_correct_not</span>
+<span id="cb19-9"><a href="#cb19-9" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> r <span class="op">==</span> <span class="dv">1</span>:</span>
+<span id="cb19-10"><a href="#cb19-10" aria-hidden="true" tabindex="-1"></a>            p_know_post <span class="op">=</span> (p_know <span class="op">*</span> p_correct_know) <span class="op">/</span> p_correct <span class="cf">if</span> p_correct <span class="op">&gt;</span> <span class="dv">0</span> <span class="cf">else</span> p_know</span>
+<span id="cb19-11"><a href="#cb19-11" aria-hidden="true" tabindex="-1"></a>        <span class="cf">else</span>:</span>
+<span id="cb19-12"><a href="#cb19-12" aria-hidden="true" tabindex="-1"></a>            p_know_post <span class="op">=</span> (p_know <span class="op">*</span> slip) <span class="op">/</span> (<span class="dv">1</span> <span class="op">-</span> p_correct) <span class="cf">if</span> (<span class="dv">1</span> <span class="op">-</span> p_correct) <span class="op">&gt;</span> <span class="dv">0</span> <span class="cf">else</span> p_know</span>
+<span id="cb19-13"><a href="#cb19-13" aria-hidden="true" tabindex="-1"></a>        p_know <span class="op">=</span> p_know_post <span class="op">+</span> (<span class="dv">1</span> <span class="op">-</span> p_know_post) <span class="op">*</span> learn</span>
+<span id="cb19-14"><a href="#cb19-14" aria-hidden="true" tabindex="-1"></a>        result.append(p_know)</span>
+<span id="cb19-15"><a href="#cb19-15" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> result</span>
+<span id="cb19-16"><a href="#cb19-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-17"><a href="#cb19-17" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="dv">5</span>), sharey<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb19-18"><a href="#cb19-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-19"><a href="#cb19-19" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> ax, skill, title_suffix <span class="kw">in</span> [</span>
+<span id="cb19-20"><a href="#cb19-20" aria-hidden="true" tabindex="-1"></a>    (axes[<span class="dv">0</span>], high_learn_skill, <span class="ss">f"(skill </span><span class="sc">{</span>high_learn_skill<span class="sc">}</span><span class="ss">, learn rate 最高)"</span>),</span>
+<span id="cb19-21"><a href="#cb19-21" aria-hidden="true" tabindex="-1"></a>    (axes[<span class="dv">1</span>], low_learn_skill, <span class="ss">f"(skill </span><span class="sc">{</span>low_learn_skill<span class="sc">}</span><span class="ss">, learn rate 最低)"</span>),</span>
+<span id="cb19-22"><a href="#cb19-22" aria-hidden="true" tabindex="-1"></a>]:</span>
+<span id="cb19-23"><a href="#cb19-23" aria-hidden="true" tabindex="-1"></a>    p <span class="op">=</span> bkt_result.params[skill]</span>
+<span id="cb19-24"><a href="#cb19-24" aria-hidden="true" tabindex="-1"></a>    skill_data <span class="op">=</span> split.train.<span class="bu">filter</span>(pl.col(<span class="st">"concept"</span>) <span class="op">==</span> <span class="bu">int</span>(skill))</span>
+<span id="cb19-25"><a href="#cb19-25" aria-hidden="true" tabindex="-1"></a>    user_counts <span class="op">=</span> skill_data.group_by(<span class="st">"user_id"</span>).agg(pl.<span class="bu">len</span>().alias(<span class="st">"n"</span>)).<span class="bu">filter</span>(pl.col(<span class="st">"n"</span>) <span class="op">&gt;=</span> <span class="dv">5</span>)</span>
+<span id="cb19-26"><a href="#cb19-26" aria-hidden="true" tabindex="-1"></a>    sample_uids <span class="op">=</span> user_counts.sort(<span class="st">"n"</span>, descending<span class="op">=</span><span class="va">True</span>).head(<span class="dv">10</span>)[<span class="st">"user_id"</span>].to_list()</span>
+<span id="cb19-27"><a href="#cb19-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-28"><a href="#cb19-28" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> uid <span class="kw">in</span> sample_uids:</span>
+<span id="cb19-29"><a href="#cb19-29" aria-hidden="true" tabindex="-1"></a>        user_skill <span class="op">=</span> skill_data.<span class="bu">filter</span>(pl.col(<span class="st">"user_id"</span>) <span class="op">==</span> uid).sort(<span class="st">"timestamp"</span>)</span>
+<span id="cb19-30"><a href="#cb19-30" aria-hidden="true" tabindex="-1"></a>        responses <span class="op">=</span> user_skill[<span class="st">"correct"</span>].to_list()</span>
+<span id="cb19-31"><a href="#cb19-31" aria-hidden="true" tabindex="-1"></a>        mastery <span class="op">=</span> _compute_mastery(responses, p[<span class="st">"prior"</span>], p[<span class="st">"learn"</span>], p[<span class="st">"guess"</span>], p[<span class="st">"slip"</span>])</span>
+<span id="cb19-32"><a href="#cb19-32" aria-hidden="true" tabindex="-1"></a>        ax.plot(<span class="bu">range</span>(<span class="bu">len</span>(mastery)), mastery, alpha<span class="op">=</span><span class="fl">0.5</span>, linewidth<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb19-33"><a href="#cb19-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-34"><a href="#cb19-34" aria-hidden="true" tabindex="-1"></a>    ax.set_xlabel(<span class="st">"解答ステップ"</span>)</span>
+<span id="cb19-35"><a href="#cb19-35" aria-hidden="true" tabindex="-1"></a>    ax.set_title(<span class="ss">f"P(mastery) の推移 </span><span class="sc">{</span>title_suffix<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb19-36"><a href="#cb19-36" aria-hidden="true" tabindex="-1"></a>    ax.set_ylim(<span class="dv">0</span>, <span class="dv">1</span>)</span>
+<span id="cb19-37"><a href="#cb19-37" aria-hidden="true" tabindex="-1"></a>    ax.axhline(<span class="fl">0.95</span>, color<span class="op">=</span><span class="st">"gray"</span>, linestyle<span class="op">=</span><span class="st">"--"</span>, alpha<span class="op">=</span><span class="fl">0.3</span>, label<span class="op">=</span><span class="st">"習得閾値 0.95"</span>)</span>
+<span id="cb19-38"><a href="#cb19-38" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-39"><a href="#cb19-39" aria-hidden="true" tabindex="-1"></a>axes[<span class="dv">0</span>].set_ylabel(<span class="st">"P(mastery)"</span>)</span>
+<span id="cb19-40"><a href="#cb19-40" aria-hidden="true" tabindex="-1"></a>axes[<span class="dv">0</span>].legend()</span>
+<span id="cb19-41"><a href="#cb19-41" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb19-42"><a href="#cb19-42" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-display">
+<div id="bkt-mastery" class="quarto-figure quarto-figure-center anchored">
+<figure class="figure">
+<p><img src="02-irt-bkt_files/figure-html/bkt-mastery-output-1.png" width="1141" height="468" class="figure-img"></p>
+<figcaption>BKT 習熟確率の推移 — 代表的スキルにおける学習者の P(mastery)</figcaption>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="パラメータの妥当性検証" class="level3">
+<h3 class="anchored" data-anchor-id="パラメータの妥当性検証">4.5 パラメータの妥当性検証</h3>
+<div id="cell-bkt-validation" class="cell" data-execution_count="13">
+<details class="code-fold">
+<summary>コードを表示</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb20"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="co"># P(L₀) vs 各スキルの初回正答率</span></span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>first_attempts <span class="op">=</span> (</span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>    split.train</span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a>    .sort(<span class="st">"user_id"</span>, <span class="st">"solving_id"</span>)</span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a>    .group_by([<span class="st">"user_id"</span>, <span class="st">"concept"</span>])</span>
+<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a>    .first()</span>
+<span id="cb20-7"><a href="#cb20-7" aria-hidden="true" tabindex="-1"></a>    .group_by(<span class="st">"concept"</span>)</span>
+<span id="cb20-8"><a href="#cb20-8" aria-hidden="true" tabindex="-1"></a>    .agg(pl.col(<span class="st">"correct"</span>).mean().alias(<span class="st">"first_acc"</span>))</span>
+<span id="cb20-9"><a href="#cb20-9" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb20-10"><a href="#cb20-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-11"><a href="#cb20-11" aria-hidden="true" tabindex="-1"></a><span class="co"># Join with BKT params</span></span>
+<span id="cb20-12"><a href="#cb20-12" aria-hidden="true" tabindex="-1"></a>first_attempts <span class="op">=</span> first_attempts.with_columns(pl.col(<span class="st">"concept"</span>).cast(pl.Utf8))</span>
+<span id="cb20-13"><a href="#cb20-13" aria-hidden="true" tabindex="-1"></a>params_with_acc <span class="op">=</span> params_df.join(</span>
+<span id="cb20-14"><a href="#cb20-14" aria-hidden="true" tabindex="-1"></a>    first_attempts, left_on<span class="op">=</span><span class="st">"skill"</span>, right_on<span class="op">=</span><span class="st">"concept"</span>, how<span class="op">=</span><span class="st">"inner"</span></span>
+<span id="cb20-15"><a href="#cb20-15" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb20-16"><a href="#cb20-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-17"><a href="#cb20-17" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="dv">5</span>))</span>
+<span id="cb20-18"><a href="#cb20-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-19"><a href="#cb20-19" aria-hidden="true" tabindex="-1"></a><span class="co"># P(L₀) vs first attempt accuracy</span></span>
+<span id="cb20-20"><a href="#cb20-20" aria-hidden="true" tabindex="-1"></a>ax <span class="op">=</span> axes[<span class="dv">0</span>]</span>
+<span id="cb20-21"><a href="#cb20-21" aria-hidden="true" tabindex="-1"></a>ax.scatter(</span>
+<span id="cb20-22"><a href="#cb20-22" aria-hidden="true" tabindex="-1"></a>    params_with_acc[<span class="st">"prior"</span>].to_numpy(),</span>
+<span id="cb20-23"><a href="#cb20-23" aria-hidden="true" tabindex="-1"></a>    params_with_acc[<span class="st">"first_acc"</span>].to_numpy(),</span>
+<span id="cb20-24"><a href="#cb20-24" aria-hidden="true" tabindex="-1"></a>    alpha<span class="op">=</span><span class="fl">0.5</span>, s<span class="op">=</span><span class="dv">30</span>, c<span class="op">=</span>ORANGE,</span>
+<span id="cb20-25"><a href="#cb20-25" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb20-26"><a href="#cb20-26" aria-hidden="true" tabindex="-1"></a>corr_prior <span class="op">=</span> np.corrcoef(</span>
+<span id="cb20-27"><a href="#cb20-27" aria-hidden="true" tabindex="-1"></a>    params_with_acc[<span class="st">"prior"</span>].to_numpy(),</span>
+<span id="cb20-28"><a href="#cb20-28" aria-hidden="true" tabindex="-1"></a>    params_with_acc[<span class="st">"first_acc"</span>].to_numpy(),</span>
+<span id="cb20-29"><a href="#cb20-29" aria-hidden="true" tabindex="-1"></a>)[<span class="dv">0</span>, <span class="dv">1</span>]</span>
+<span id="cb20-30"><a href="#cb20-30" aria-hidden="true" tabindex="-1"></a>ax.set_xlabel(<span class="st">"P(L₀)"</span>)</span>
+<span id="cb20-31"><a href="#cb20-31" aria-hidden="true" tabindex="-1"></a>ax.set_ylabel(<span class="st">"初回正答率"</span>)</span>
+<span id="cb20-32"><a href="#cb20-32" aria-hidden="true" tabindex="-1"></a>ax.set_title(<span class="ss">f"P(L₀) vs 初回正答率 (r = </span><span class="sc">{</span>corr_prior<span class="sc">:.3f}</span><span class="ss">)"</span>)</span>
+<span id="cb20-33"><a href="#cb20-33" aria-hidden="true" tabindex="-1"></a>ax.plot([<span class="dv">0</span>, <span class="dv">1</span>], [<span class="dv">0</span>, <span class="dv">1</span>], <span class="st">"k--"</span>, alpha<span class="op">=</span><span class="fl">0.3</span>)</span>
+<span id="cb20-34"><a href="#cb20-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-35"><a href="#cb20-35" aria-hidden="true" tabindex="-1"></a><span class="co"># Learn rate distribution with interpretation</span></span>
+<span id="cb20-36"><a href="#cb20-36" aria-hidden="true" tabindex="-1"></a>ax <span class="op">=</span> axes[<span class="dv">1</span>]</span>
+<span id="cb20-37"><a href="#cb20-37" aria-hidden="true" tabindex="-1"></a>ax.hist(params_df[<span class="st">"learn"</span>].to_numpy(), bins<span class="op">=</span><span class="dv">20</span>, color<span class="op">=</span>ORANGE, alpha<span class="op">=</span><span class="fl">0.7</span>, edgecolor<span class="op">=</span><span class="st">"white"</span>)</span>
+<span id="cb20-38"><a href="#cb20-38" aria-hidden="true" tabindex="-1"></a>ax.set_xlabel(<span class="st">"P(T) — 遷移確率"</span>)</span>
+<span id="cb20-39"><a href="#cb20-39" aria-hidden="true" tabindex="-1"></a>ax.set_ylabel(<span class="st">"スキル数"</span>)</span>
+<span id="cb20-40"><a href="#cb20-40" aria-hidden="true" tabindex="-1"></a>ax.set_title(<span class="st">"学習しやすさの分布"</span>)</span>
+<span id="cb20-41"><a href="#cb20-41" aria-hidden="true" tabindex="-1"></a>ax.axvline(params_df[<span class="st">"learn"</span>].median(), color<span class="op">=</span><span class="st">"gray"</span>, linestyle<span class="op">=</span><span class="st">"--"</span>, alpha<span class="op">=</span><span class="fl">0.5</span>,</span>
+<span id="cb20-42"><a href="#cb20-42" aria-hidden="true" tabindex="-1"></a>           label<span class="op">=</span><span class="ss">f"中央値 </span><span class="sc">{</span>params_df[<span class="st">'learn'</span>]<span class="sc">.</span>median()<span class="sc">:.3f}</span><span class="ss">"</span>)</span>
+<span id="cb20-43"><a href="#cb20-43" aria-hidden="true" tabindex="-1"></a>ax.legend()</span>
+<span id="cb20-44"><a href="#cb20-44" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-45"><a href="#cb20-45" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb20-46"><a href="#cb20-46" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb20-47"><a href="#cb20-47" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-48"><a href="#cb20-48" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"P(L₀) と初回正答率の相関: r = </span><span class="sc">{</span>corr_prior<span class="sc">:.3f}</span><span class="ss">"</span>)</span>
+<span id="cb20-49"><a href="#cb20-49" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"learn rate 中央値: </span><span class="sc">{</span>params_df[<span class="st">'learn'</span>]<span class="sc">.</span>median()<span class="sc">:.3f}</span><span class="ss">"</span>)</span>
+<span id="cb20-50"><a href="#cb20-50" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"learn rate 最高スキル: </span><span class="sc">{</span>high_learn_skill<span class="sc">}</span><span class="ss"> (</span><span class="sc">{</span>params_df<span class="sc">.</span><span class="bu">filter</span>(pl.col(<span class="st">'skill'</span>) <span class="op">==</span> high_learn_skill)[<span class="st">'learn'</span>][<span class="dv">0</span>]<span class="sc">:.3f}</span><span class="ss">)"</span>)</span>
+<span id="cb20-51"><a href="#cb20-51" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"learn rate 最低スキル: </span><span class="sc">{</span>low_learn_skill<span class="sc">}</span><span class="ss"> (</span><span class="sc">{</span>params_df<span class="sc">.</span><span class="bu">filter</span>(pl.col(<span class="st">'skill'</span>) <span class="op">==</span> low_learn_skill)[<span class="st">'learn'</span>][<span class="dv">0</span>]<span class="sc">:.3f}</span><span class="ss">)"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-display">
+<div id="bkt-validation" class="quarto-figure quarto-figure-center anchored">
+<figure class="figure">
+<p><img src="02-irt-bkt_files/figure-html/bkt-validation-output-1.png" width="1142" height="468" class="figure-img"></p>
+<figcaption>BKT P(L₀) vs 初回正答率 — パラメータの妥当性</figcaption>
+</figure>
+</div>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>P(L₀) と初回正答率の相関: r = 0.541
+learn rate 中央値: 0.058
+learn rate 最高スキル: 173 (0.995)
+learn rate 最低スキル: 94 (0.000)</code></pre>
+</div>
+</div>
+</section>
+</section>
+<section id="評価と比較" class="level2">
+<h2 class="anchored" data-anchor-id="評価と比較">5. 評価と比較</h2>
+<section id="評価方法" class="level3">
+<h3 class="anchored" data-anchor-id="評価方法">5.1 評価方法</h3>
+<p>IRT/BKT はユーザーの過去データから <strong>そのユーザーの</strong> パラメータを推定するモデルである。ユーザーレベル分割（train と test でユーザーが完全に分離）では、テストユーザーの θ や P(mastery) を推定するデータがなく、IRT は θ=0、BKT は P(L₀) にフォールバックする。これは「コンセプト難易度による定数予測」でしかなく、IRT/BKT 本来の能力を測定できない。</p>
+<p>そこで <strong>2 つの評価</strong> を行う。</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 22%">
+<col style="width: 44%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>評価方式</th>
+<th>方法</th>
+<th>測定するもの</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Within-user temporal split</strong></td>
+<td>同一ユーザーの系列を時間順に前半 70% / 後半 30% に分割</td>
+<td>知識状態推定の精度（IRT/BKT の本来の能力）</td>
+</tr>
+<tr class="even">
+<td><strong>User-level split</strong></td>
+<td>未知ユーザーでの予測 (split.test)</td>
+<td>cold-start 性能（深層 KT との比較用ベースライン）</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="within-user-temporal-split知識状態推定の評価" class="level3">
+<h3 class="anchored" data-anchor-id="within-user-temporal-split知識状態推定の評価">5.2 Within-user temporal split（知識状態推定の評価）</h3>
+<p>train ユーザーの系列を時間順に分割し、前半で推定したパラメータで後半を予測する。</p>
+<div id="within-user-split" class="cell" data-execution_count="14">
+<details class="code-fold">
+<summary>コードを表示</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb22"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> src.features.preprocess <span class="im">import</span> split_within_user</span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> src.models.irt <span class="im">import</span> predict_irt, prepare_irt_data, IRTResult</span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> src.<span class="bu">eval</span>.metrics <span class="im">import</span> evaluate_predictions, calibration_data</span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.metrics <span class="im">import</span> roc_auc_score, roc_curve</span>
+<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-6"><a href="#cb22-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Train ユーザーの系列を 70/30 に分割</span></span>
+<span id="cb22-7"><a href="#cb22-7" aria-hidden="true" tabindex="-1"></a>wu_early, wu_late <span class="op">=</span> split_within_user(split.train, train_frac<span class="op">=</span><span class="fl">0.7</span>)</span>
+<span id="cb22-8"><a href="#cb22-8" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Within-user split:"</span>)</span>
+<span id="cb22-9"><a href="#cb22-9" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  early: </span><span class="sc">{</span>wu_early<span class="sc">.</span>height<span class="sc">:,}</span><span class="ss"> rows (</span><span class="sc">{</span>wu_early[<span class="st">'user_id'</span>]<span class="sc">.</span>n_unique()<span class="sc">:,}</span><span class="ss"> users)"</span>)</span>
+<span id="cb22-10"><a href="#cb22-10" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  late:  </span><span class="sc">{</span>wu_late<span class="sc">.</span>height<span class="sc">:,}</span><span class="ss"> rows (</span><span class="sc">{</span>wu_late[<span class="st">'user_id'</span>]<span class="sc">.</span>n_unique()<span class="sc">:,}</span><span class="ss"> users)"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>Within-user split:
+  early: 528,254 rows (1,952 users)
+  late:  227,631 rows (1,952 users)</code></pre>
+</div>
+</div>
+<div id="wu-irt-predict" class="cell" data-execution_count="15">
+<details class="code-fold">
+<summary>コードを表示</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb24"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="co"># IRT: early で推定した θ を使って late を予測</span></span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a><span class="co"># irt_result は split.train 全体で学習済み（500ユーザーサブサンプル）</span></span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a><span class="co"># 同一ユーザーの late 部分を予測するので、θ が有効に機能する</span></span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a>wu_irt_probs <span class="op">=</span> predict_irt(irt_result, wu_late)</span>
+<span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a>wu_y_true <span class="op">=</span> wu_late[<span class="st">"correct"</span>].to_numpy().astype(np.int64)</span>
+<span id="cb24-6"><a href="#cb24-6" aria-hidden="true" tabindex="-1"></a>wu_irt_eval <span class="op">=</span> evaluate_predictions(wu_y_true, wu_irt_probs)</span>
+<span id="cb24-7"><a href="#cb24-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-8"><a href="#cb24-8" aria-hidden="true" tabindex="-1"></a><span class="co"># IRT のユーザー個別化が効いているか確認</span></span>
+<span id="cb24-9"><a href="#cb24-9" aria-hidden="true" tabindex="-1"></a>irt_unique_preds <span class="op">=</span> <span class="bu">len</span>(np.unique(np.<span class="bu">round</span>(wu_irt_probs, <span class="dv">6</span>)))</span>
+<span id="cb24-10"><a href="#cb24-10" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"IRT unique predictions: </span><span class="sc">{</span>irt_unique_preds<span class="sc">:,}</span><span class="ss"> (個人化が効いていれば &gt; コンセプト数 </span><span class="sc">{</span>split<span class="sc">.</span>n_concepts<span class="sc">}</span><span class="ss">)"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>IRT unique predictions: 13,725 (個人化が効いていれば &gt; コンセプト数 188)</code></pre>
+</div>
+</div>
+<div id="wu-bkt-predict" class="cell" data-execution_count="16">
+<details class="code-fold">
+<summary>コードを表示</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb26"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="co"># BKT: early の系列で P(know) を追跡し、late の各行を予測</span></span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> _bkt_predict_within_user(early_df, late_df, params):</span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""early で P(know) を追跡し、late の各 (user, concept) を予測する。"""</span></span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a>    fitted_skills <span class="op">=</span> <span class="bu">set</span>(params.keys())</span>
+<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Phase 1: early の系列から各 (user, skill) の最終 P(know) を計算</span></span>
+<span id="cb26-7"><a href="#cb26-7" aria-hidden="true" tabindex="-1"></a>    mastery <span class="op">=</span> {}</span>
+<span id="cb26-8"><a href="#cb26-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> skill_str <span class="kw">in</span> fitted_skills:</span>
+<span id="cb26-9"><a href="#cb26-9" aria-hidden="true" tabindex="-1"></a>        p <span class="op">=</span> params[skill_str]</span>
+<span id="cb26-10"><a href="#cb26-10" aria-hidden="true" tabindex="-1"></a>        skill_data <span class="op">=</span> early_df.<span class="bu">filter</span>(pl.col(<span class="st">"concept"</span>) <span class="op">==</span> <span class="bu">int</span>(skill_str)).sort(<span class="st">"user_id"</span>, <span class="st">"timestamp"</span>)</span>
+<span id="cb26-11"><a href="#cb26-11" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> skill_data.height <span class="op">==</span> <span class="dv">0</span>:</span>
+<span id="cb26-12"><a href="#cb26-12" aria-hidden="true" tabindex="-1"></a>            <span class="cf">continue</span></span>
+<span id="cb26-13"><a href="#cb26-13" aria-hidden="true" tabindex="-1"></a>        uids <span class="op">=</span> skill_data[<span class="st">"user_id"</span>].to_numpy()</span>
+<span id="cb26-14"><a href="#cb26-14" aria-hidden="true" tabindex="-1"></a>        corrects <span class="op">=</span> skill_data[<span class="st">"correct"</span>].to_numpy()</span>
+<span id="cb26-15"><a href="#cb26-15" aria-hidden="true" tabindex="-1"></a>        prev_uid <span class="op">=</span> <span class="op">-</span><span class="dv">1</span></span>
+<span id="cb26-16"><a href="#cb26-16" aria-hidden="true" tabindex="-1"></a>        p_know <span class="op">=</span> p[<span class="st">"prior"</span>]</span>
+<span id="cb26-17"><a href="#cb26-17" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(<span class="bu">len</span>(uids)):</span>
+<span id="cb26-18"><a href="#cb26-18" aria-hidden="true" tabindex="-1"></a>            uid <span class="op">=</span> <span class="bu">int</span>(uids[i])</span>
+<span id="cb26-19"><a href="#cb26-19" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> uid <span class="op">!=</span> prev_uid:</span>
+<span id="cb26-20"><a href="#cb26-20" aria-hidden="true" tabindex="-1"></a>                <span class="cf">if</span> prev_uid <span class="op">&gt;=</span> <span class="dv">0</span>:</span>
+<span id="cb26-21"><a href="#cb26-21" aria-hidden="true" tabindex="-1"></a>                    mastery[(prev_uid, skill_str)] <span class="op">=</span> p_know</span>
+<span id="cb26-22"><a href="#cb26-22" aria-hidden="true" tabindex="-1"></a>                p_know <span class="op">=</span> p[<span class="st">"prior"</span>]</span>
+<span id="cb26-23"><a href="#cb26-23" aria-hidden="true" tabindex="-1"></a>                prev_uid <span class="op">=</span> uid</span>
+<span id="cb26-24"><a href="#cb26-24" aria-hidden="true" tabindex="-1"></a>            r <span class="op">=</span> <span class="bu">int</span>(corrects[i])</span>
+<span id="cb26-25"><a href="#cb26-25" aria-hidden="true" tabindex="-1"></a>            p_c <span class="op">=</span> p_know <span class="op">*</span> (<span class="dv">1</span> <span class="op">-</span> p[<span class="st">"slip"</span>]) <span class="op">+</span> (<span class="dv">1</span> <span class="op">-</span> p_know) <span class="op">*</span> p[<span class="st">"guess"</span>]</span>
+<span id="cb26-26"><a href="#cb26-26" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> r <span class="op">==</span> <span class="dv">1</span>:</span>
+<span id="cb26-27"><a href="#cb26-27" aria-hidden="true" tabindex="-1"></a>                p_know <span class="op">=</span> (p_know <span class="op">*</span> (<span class="dv">1</span> <span class="op">-</span> p[<span class="st">"slip"</span>])) <span class="op">/</span> p_c <span class="cf">if</span> p_c <span class="op">&gt;</span> <span class="dv">0</span> <span class="cf">else</span> p_know</span>
+<span id="cb26-28"><a href="#cb26-28" aria-hidden="true" tabindex="-1"></a>            <span class="cf">else</span>:</span>
+<span id="cb26-29"><a href="#cb26-29" aria-hidden="true" tabindex="-1"></a>                p_know <span class="op">=</span> (p_know <span class="op">*</span> p[<span class="st">"slip"</span>]) <span class="op">/</span> (<span class="dv">1</span> <span class="op">-</span> p_c) <span class="cf">if</span> (<span class="dv">1</span> <span class="op">-</span> p_c) <span class="op">&gt;</span> <span class="dv">0</span> <span class="cf">else</span> p_know</span>
+<span id="cb26-30"><a href="#cb26-30" aria-hidden="true" tabindex="-1"></a>            p_know <span class="op">=</span> p_know <span class="op">+</span> (<span class="dv">1</span> <span class="op">-</span> p_know) <span class="op">*</span> p[<span class="st">"learn"</span>]</span>
+<span id="cb26-31"><a href="#cb26-31" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> prev_uid <span class="op">&gt;=</span> <span class="dv">0</span>:</span>
+<span id="cb26-32"><a href="#cb26-32" aria-hidden="true" tabindex="-1"></a>            mastery[(prev_uid, skill_str)] <span class="op">=</span> p_know</span>
+<span id="cb26-33"><a href="#cb26-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-34"><a href="#cb26-34" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Phase 2: late の各行を予測</span></span>
+<span id="cb26-35"><a href="#cb26-35" aria-hidden="true" tabindex="-1"></a>    test_uids <span class="op">=</span> late_df[<span class="st">"user_id"</span>].to_numpy()</span>
+<span id="cb26-36"><a href="#cb26-36" aria-hidden="true" tabindex="-1"></a>    test_concepts <span class="op">=</span> late_df[<span class="st">"concept"</span>].to_numpy()</span>
+<span id="cb26-37"><a href="#cb26-37" aria-hidden="true" tabindex="-1"></a>    probs <span class="op">=</span> np.empty(<span class="bu">len</span>(late_df), dtype<span class="op">=</span>np.float64)</span>
+<span id="cb26-38"><a href="#cb26-38" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(<span class="bu">len</span>(probs)):</span>
+<span id="cb26-39"><a href="#cb26-39" aria-hidden="true" tabindex="-1"></a>        c_str <span class="op">=</span> <span class="bu">str</span>(test_concepts[i])</span>
+<span id="cb26-40"><a href="#cb26-40" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> c_str <span class="kw">not</span> <span class="kw">in</span> fitted_skills:</span>
+<span id="cb26-41"><a href="#cb26-41" aria-hidden="true" tabindex="-1"></a>            probs[i] <span class="op">=</span> <span class="fl">0.5</span></span>
+<span id="cb26-42"><a href="#cb26-42" aria-hidden="true" tabindex="-1"></a>            <span class="cf">continue</span></span>
+<span id="cb26-43"><a href="#cb26-43" aria-hidden="true" tabindex="-1"></a>        p <span class="op">=</span> params[c_str]</span>
+<span id="cb26-44"><a href="#cb26-44" aria-hidden="true" tabindex="-1"></a>        p_know <span class="op">=</span> mastery.get((<span class="bu">int</span>(test_uids[i]), c_str), p[<span class="st">"prior"</span>])</span>
+<span id="cb26-45"><a href="#cb26-45" aria-hidden="true" tabindex="-1"></a>        probs[i] <span class="op">=</span> p_know <span class="op">*</span> (<span class="dv">1</span> <span class="op">-</span> p[<span class="st">"slip"</span>]) <span class="op">+</span> (<span class="dv">1</span> <span class="op">-</span> p_know) <span class="op">*</span> p[<span class="st">"guess"</span>]</span>
+<span id="cb26-46"><a href="#cb26-46" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> probs</span>
+<span id="cb26-47"><a href="#cb26-47" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-48"><a href="#cb26-48" aria-hidden="true" tabindex="-1"></a>wu_bkt_probs <span class="op">=</span> np.clip(</span>
+<span id="cb26-49"><a href="#cb26-49" aria-hidden="true" tabindex="-1"></a>    _bkt_predict_within_user(wu_early, wu_late, bkt_result.params), <span class="fl">0.0</span>, <span class="fl">1.0</span></span>
+<span id="cb26-50"><a href="#cb26-50" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb26-51"><a href="#cb26-51" aria-hidden="true" tabindex="-1"></a>wu_bkt_eval <span class="op">=</span> evaluate_predictions(wu_y_true, wu_bkt_probs)</span>
+<span id="cb26-52"><a href="#cb26-52" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-53"><a href="#cb26-53" aria-hidden="true" tabindex="-1"></a>bkt_unique_preds <span class="op">=</span> <span class="bu">len</span>(np.unique(np.<span class="bu">round</span>(wu_bkt_probs, <span class="dv">6</span>)))</span>
+<span id="cb26-54"><a href="#cb26-54" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"BKT unique predictions: </span><span class="sc">{</span>bkt_unique_preds<span class="sc">:,}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>BKT unique predictions: 15,939</code></pre>
+</div>
+</div>
+<div id="wu-results" class="cell" data-execution_count="17">
+<details class="code-fold">
+<summary>コードを表示</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb28"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"=== Within-user temporal split (知識状態推定の評価) ==="</span>)</span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span><span class="st">'Model'</span><span class="sc">:&lt;8}</span><span class="ss"> </span><span class="sc">{</span><span class="st">'AUC'</span><span class="sc">:&gt;6}</span><span class="ss"> </span><span class="sc">{</span><span class="st">'Acc'</span><span class="sc">:&gt;6}</span><span class="ss"> </span><span class="sc">{</span><span class="st">'LogLoss'</span><span class="sc">:&gt;8}</span><span class="ss"> </span><span class="sc">{</span><span class="st">'N'</span><span class="sc">:&gt;10}</span><span class="ss">"</span>)</span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"-"</span> <span class="op">*</span> <span class="dv">42</span>)</span>
+<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span><span class="st">'IRT 2PL'</span><span class="sc">:&lt;8}</span><span class="ss"> </span><span class="sc">{</span>wu_irt_eval<span class="sc">.</span>auc_roc<span class="sc">:&gt;6.3f}</span><span class="ss"> </span><span class="sc">{</span>wu_irt_eval<span class="sc">.</span>accuracy<span class="sc">:&gt;6.3f}</span><span class="ss"> </span><span class="sc">{</span>wu_irt_eval<span class="sc">.</span>log_loss<span class="sc">:&gt;8.4f}</span><span class="ss"> </span><span class="sc">{</span>wu_irt_eval<span class="sc">.</span>n_samples<span class="sc">:&gt;10,}</span><span class="ss">"</span>)</span>
+<span id="cb28-5"><a href="#cb28-5" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span><span class="st">'BKT'</span><span class="sc">:&lt;8}</span><span class="ss"> </span><span class="sc">{</span>wu_bkt_eval<span class="sc">.</span>auc_roc<span class="sc">:&gt;6.3f}</span><span class="ss"> </span><span class="sc">{</span>wu_bkt_eval<span class="sc">.</span>accuracy<span class="sc">:&gt;6.3f}</span><span class="ss"> </span><span class="sc">{</span>wu_bkt_eval<span class="sc">.</span>log_loss<span class="sc">:&gt;8.4f}</span><span class="ss"> </span><span class="sc">{</span>wu_bkt_eval<span class="sc">.</span>n_samples<span class="sc">:&gt;10,}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>=== Within-user temporal split (知識状態推定の評価) ===
+Model       AUC    Acc  LogLoss          N
+------------------------------------------
+IRT 2PL   0.571  0.646   0.6418    227,631
+BKT       0.618  0.688   0.6058    227,631</code></pre>
+</div>
+</div>
+<div id="cell-wu-roc" class="cell" data-execution_count="18">
+<details class="code-fold">
+<summary>コードを表示</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb30"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="dv">5</span>))</span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a>ax <span class="op">=</span> axes[<span class="dv">0</span>]</span>
+<span id="cb30-4"><a href="#cb30-4" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> name, probs, color <span class="kw">in</span> [(<span class="st">"IRT 2PL"</span>, wu_irt_probs, BLUE), (<span class="st">"BKT"</span>, wu_bkt_probs, ORANGE)]:</span>
+<span id="cb30-5"><a href="#cb30-5" aria-hidden="true" tabindex="-1"></a>    fpr, tpr, _ <span class="op">=</span> roc_curve(wu_y_true, probs)</span>
+<span id="cb30-6"><a href="#cb30-6" aria-hidden="true" tabindex="-1"></a>    ax.plot(fpr, tpr, label<span class="op">=</span>name, color<span class="op">=</span>color, linewidth<span class="op">=</span><span class="dv">2</span>)</span>
+<span id="cb30-7"><a href="#cb30-7" aria-hidden="true" tabindex="-1"></a>ax.plot([<span class="dv">0</span>, <span class="dv">1</span>], [<span class="dv">0</span>, <span class="dv">1</span>], <span class="st">"k--"</span>, alpha<span class="op">=</span><span class="fl">0.3</span>)</span>
+<span id="cb30-8"><a href="#cb30-8" aria-hidden="true" tabindex="-1"></a>ax.set_xlabel(<span class="st">"False Positive Rate"</span>)</span>
+<span id="cb30-9"><a href="#cb30-9" aria-hidden="true" tabindex="-1"></a>ax.set_ylabel(<span class="st">"True Positive Rate"</span>)</span>
+<span id="cb30-10"><a href="#cb30-10" aria-hidden="true" tabindex="-1"></a>ax.set_title(<span class="st">"ROC 曲線 (within-user)"</span>)</span>
+<span id="cb30-11"><a href="#cb30-11" aria-hidden="true" tabindex="-1"></a>ax.legend()</span>
+<span id="cb30-12"><a href="#cb30-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-13"><a href="#cb30-13" aria-hidden="true" tabindex="-1"></a>ax <span class="op">=</span> axes[<span class="dv">1</span>]</span>
+<span id="cb30-14"><a href="#cb30-14" aria-hidden="true" tabindex="-1"></a>models <span class="op">=</span> [<span class="st">"IRT 2PL"</span>, <span class="st">"BKT"</span>]</span>
+<span id="cb30-15"><a href="#cb30-15" aria-hidden="true" tabindex="-1"></a>aucs <span class="op">=</span> [wu_irt_eval.auc_roc, wu_bkt_eval.auc_roc]</span>
+<span id="cb30-16"><a href="#cb30-16" aria-hidden="true" tabindex="-1"></a>bars <span class="op">=</span> ax.bar(models, aucs, color<span class="op">=</span>[BLUE, ORANGE], alpha<span class="op">=</span><span class="fl">0.8</span>)</span>
+<span id="cb30-17"><a href="#cb30-17" aria-hidden="true" tabindex="-1"></a>ax.set_ylabel(<span class="st">"AUC-ROC"</span>)</span>
+<span id="cb30-18"><a href="#cb30-18" aria-hidden="true" tabindex="-1"></a>ax.set_title(<span class="st">"AUC 比較 (within-user)"</span>)</span>
+<span id="cb30-19"><a href="#cb30-19" aria-hidden="true" tabindex="-1"></a>ax.set_ylim(<span class="fl">0.4</span>, <span class="fl">0.85</span>)</span>
+<span id="cb30-20"><a href="#cb30-20" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> bar, auc <span class="kw">in</span> <span class="bu">zip</span>(bars, aucs, strict<span class="op">=</span><span class="va">True</span>):</span>
+<span id="cb30-21"><a href="#cb30-21" aria-hidden="true" tabindex="-1"></a>    ax.text(bar.get_x() <span class="op">+</span> bar.get_width() <span class="op">/</span> <span class="dv">2</span>, bar.get_height() <span class="op">+</span> <span class="fl">0.005</span>,</span>
+<span id="cb30-22"><a href="#cb30-22" aria-hidden="true" tabindex="-1"></a>            <span class="ss">f"</span><span class="sc">{</span>auc<span class="sc">:.3f}</span><span class="ss">"</span>, ha<span class="op">=</span><span class="st">"center"</span>, va<span class="op">=</span><span class="st">"bottom"</span>, fontweight<span class="op">=</span><span class="st">"bold"</span>)</span>
+<span id="cb30-23"><a href="#cb30-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-24"><a href="#cb30-24" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb30-25"><a href="#cb30-25" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-display">
+<div id="wu-roc" class="quarto-figure quarto-figure-center anchored">
+<figure class="figure">
+<p><img src="02-irt-bkt_files/figure-html/wu-roc-output-1.png" width="1142" height="468" class="figure-img"></p>
+<figcaption>Within-user ROC 曲線 — IRT/BKT の知識状態推定能力</figcaption>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="user-level-split未知ユーザーでのベースライン" class="level3">
+<h3 class="anchored" data-anchor-id="user-level-split未知ユーザーでのベースライン">5.3 User-level split（未知ユーザーでのベースライン）</h3>
+<div class="callout callout-style-default callout-warning callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Warning</span>cold-start 評価
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>この評価ではテストユーザーの過去データが一切ないため、IRT は θ=0（人口平均）、BKT は P(L₀)（初期習熟確率）にフォールバックする。AUC はコンセプト難易度の傾斜だけで稼いだ値であり、IRT/BKT 本来の「個人の知識状態推定」能力は反映されていない。深層 KT (03) との比較用ベースラインとして記録する。</p>
+</div>
+</div>
+<div id="coldstart-eval" class="cell" data-execution_count="19">
+<details class="code-fold">
+<summary>コードを表示</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb31"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> src.models.irt <span class="im">import</span> predict_irt</span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a>cs_y_true <span class="op">=</span> split.test[<span class="st">"correct"</span>].to_numpy().astype(np.int64)</span>
+<span id="cb31-4"><a href="#cb31-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-5"><a href="#cb31-5" aria-hidden="true" tabindex="-1"></a><span class="co"># IRT: テストユーザーは全員 θ=0 にフォールバック</span></span>
+<span id="cb31-6"><a href="#cb31-6" aria-hidden="true" tabindex="-1"></a>cs_irt_probs <span class="op">=</span> predict_irt(irt_result, split.test)</span>
+<span id="cb31-7"><a href="#cb31-7" aria-hidden="true" tabindex="-1"></a>cs_irt_eval <span class="op">=</span> evaluate_predictions(cs_y_true, cs_irt_probs)</span>
+<span id="cb31-8"><a href="#cb31-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-9"><a href="#cb31-9" aria-hidden="true" tabindex="-1"></a><span class="co"># BKT: テストユーザーは全員 P(L₀) にフォールバック</span></span>
+<span id="cb31-10"><a href="#cb31-10" aria-hidden="true" tabindex="-1"></a>cs_bkt_probs <span class="op">=</span> np.empty(<span class="bu">len</span>(split.test), dtype<span class="op">=</span>np.float64)</span>
+<span id="cb31-11"><a href="#cb31-11" aria-hidden="true" tabindex="-1"></a>test_concepts <span class="op">=</span> split.test[<span class="st">"concept"</span>].to_numpy()</span>
+<span id="cb31-12"><a href="#cb31-12" aria-hidden="true" tabindex="-1"></a>fitted_skills <span class="op">=</span> <span class="bu">set</span>(bkt_result.params.keys())</span>
+<span id="cb31-13"><a href="#cb31-13" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(<span class="bu">len</span>(cs_bkt_probs)):</span>
+<span id="cb31-14"><a href="#cb31-14" aria-hidden="true" tabindex="-1"></a>    c_str <span class="op">=</span> <span class="bu">str</span>(test_concepts[i])</span>
+<span id="cb31-15"><a href="#cb31-15" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> c_str <span class="kw">not</span> <span class="kw">in</span> fitted_skills:</span>
+<span id="cb31-16"><a href="#cb31-16" aria-hidden="true" tabindex="-1"></a>        cs_bkt_probs[i] <span class="op">=</span> <span class="fl">0.5</span></span>
+<span id="cb31-17"><a href="#cb31-17" aria-hidden="true" tabindex="-1"></a>        <span class="cf">continue</span></span>
+<span id="cb31-18"><a href="#cb31-18" aria-hidden="true" tabindex="-1"></a>    p <span class="op">=</span> bkt_result.params[c_str]</span>
+<span id="cb31-19"><a href="#cb31-19" aria-hidden="true" tabindex="-1"></a>    cs_bkt_probs[i] <span class="op">=</span> p[<span class="st">"prior"</span>] <span class="op">*</span> (<span class="dv">1</span> <span class="op">-</span> p[<span class="st">"slip"</span>]) <span class="op">+</span> (<span class="dv">1</span> <span class="op">-</span> p[<span class="st">"prior"</span>]) <span class="op">*</span> p[<span class="st">"guess"</span>]</span>
+<span id="cb31-20"><a href="#cb31-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-21"><a href="#cb31-21" aria-hidden="true" tabindex="-1"></a>cs_bkt_probs <span class="op">=</span> np.clip(cs_bkt_probs, <span class="fl">0.0</span>, <span class="fl">1.0</span>)</span>
+<span id="cb31-22"><a href="#cb31-22" aria-hidden="true" tabindex="-1"></a>cs_bkt_eval <span class="op">=</span> evaluate_predictions(cs_y_true, cs_bkt_probs)</span>
+<span id="cb31-23"><a href="#cb31-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-24"><a href="#cb31-24" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"=== User-level split (cold-start ベースライン) ==="</span>)</span>
+<span id="cb31-25"><a href="#cb31-25" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span><span class="st">'Model'</span><span class="sc">:&lt;8}</span><span class="ss"> </span><span class="sc">{</span><span class="st">'AUC'</span><span class="sc">:&gt;6}</span><span class="ss"> </span><span class="sc">{</span><span class="st">'Acc'</span><span class="sc">:&gt;6}</span><span class="ss"> </span><span class="sc">{</span><span class="st">'LogLoss'</span><span class="sc">:&gt;8}</span><span class="ss"> </span><span class="sc">{</span><span class="st">'N'</span><span class="sc">:&gt;10}</span><span class="ss">"</span>)</span>
+<span id="cb31-26"><a href="#cb31-26" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"-"</span> <span class="op">*</span> <span class="dv">42</span>)</span>
+<span id="cb31-27"><a href="#cb31-27" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span><span class="st">'IRT 2PL'</span><span class="sc">:&lt;8}</span><span class="ss"> </span><span class="sc">{</span>cs_irt_eval<span class="sc">.</span>auc_roc<span class="sc">:&gt;6.3f}</span><span class="ss"> </span><span class="sc">{</span>cs_irt_eval<span class="sc">.</span>accuracy<span class="sc">:&gt;6.3f}</span><span class="ss"> </span><span class="sc">{</span>cs_irt_eval<span class="sc">.</span>log_loss<span class="sc">:&gt;8.4f}</span><span class="ss"> </span><span class="sc">{</span>cs_irt_eval<span class="sc">.</span>n_samples<span class="sc">:&gt;10,}</span><span class="ss">"</span>)</span>
+<span id="cb31-28"><a href="#cb31-28" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span><span class="st">'BKT'</span><span class="sc">:&lt;8}</span><span class="ss"> </span><span class="sc">{</span>cs_bkt_eval<span class="sc">.</span>auc_roc<span class="sc">:&gt;6.3f}</span><span class="ss"> </span><span class="sc">{</span>cs_bkt_eval<span class="sc">.</span>accuracy<span class="sc">:&gt;6.3f}</span><span class="ss"> </span><span class="sc">{</span>cs_bkt_eval<span class="sc">.</span>log_loss<span class="sc">:&gt;8.4f}</span><span class="ss"> </span><span class="sc">{</span>cs_bkt_eval<span class="sc">.</span>n_samples<span class="sc">:&gt;10,}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>=== User-level split (cold-start ベースライン) ===
+Model       AUC    Acc  LogLoss          N
+------------------------------------------
+IRT 2PL   0.556  0.621   0.6595    158,614
+BKT       0.566  0.661   0.6354    158,614</code></pre>
+</div>
+</div>
+</section>
+<section id="キャリブレーション" class="level3">
+<h3 class="anchored" data-anchor-id="キャリブレーション">5.4 キャリブレーション</h3>
+<div id="cell-calibration" class="cell" data-execution_count="20">
+<details class="code-fold">
+<summary>コードを表示</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb33"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">6</span>, <span class="dv">6</span>))</span>
+<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-3"><a href="#cb33-3" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> name, probs, color <span class="kw">in</span> [(<span class="st">"IRT 2PL"</span>, wu_irt_probs, BLUE), (<span class="st">"BKT"</span>, wu_bkt_probs, ORANGE)]:</span>
+<span id="cb33-4"><a href="#cb33-4" aria-hidden="true" tabindex="-1"></a>    frac_pos, mean_pred <span class="op">=</span> calibration_data(wu_y_true, probs, n_bins<span class="op">=</span><span class="dv">10</span>)</span>
+<span id="cb33-5"><a href="#cb33-5" aria-hidden="true" tabindex="-1"></a>    ax.plot(mean_pred, frac_pos, <span class="st">"o-"</span>, label<span class="op">=</span>name, color<span class="op">=</span>color, linewidth<span class="op">=</span><span class="dv">2</span>, markersize<span class="op">=</span><span class="dv">6</span>)</span>
+<span id="cb33-6"><a href="#cb33-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-7"><a href="#cb33-7" aria-hidden="true" tabindex="-1"></a>ax.plot([<span class="dv">0</span>, <span class="dv">1</span>], [<span class="dv">0</span>, <span class="dv">1</span>], <span class="st">"k--"</span>, alpha<span class="op">=</span><span class="fl">0.3</span>, label<span class="op">=</span><span class="st">"Perfect calibration"</span>)</span>
+<span id="cb33-8"><a href="#cb33-8" aria-hidden="true" tabindex="-1"></a>ax.set_xlabel(<span class="st">"予測確率"</span>)</span>
+<span id="cb33-9"><a href="#cb33-9" aria-hidden="true" tabindex="-1"></a>ax.set_ylabel(<span class="st">"実際の正答率"</span>)</span>
+<span id="cb33-10"><a href="#cb33-10" aria-hidden="true" tabindex="-1"></a>ax.set_title(<span class="st">"キャリブレーション (within-user)"</span>)</span>
+<span id="cb33-11"><a href="#cb33-11" aria-hidden="true" tabindex="-1"></a>ax.legend()</span>
+<span id="cb33-12"><a href="#cb33-12" aria-hidden="true" tabindex="-1"></a>ax.set_xlim(<span class="dv">0</span>, <span class="dv">1</span>)</span>
+<span id="cb33-13"><a href="#cb33-13" aria-hidden="true" tabindex="-1"></a>ax.set_ylim(<span class="dv">0</span>, <span class="dv">1</span>)</span>
+<span id="cb33-14"><a href="#cb33-14" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb33-15"><a href="#cb33-15" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-display">
+<div id="calibration" class="quarto-figure quarto-figure-center anchored">
+<figure class="figure">
+<p><img src="02-irt-bkt_files/figure-html/calibration-output-1.png" width="566" height="564" class="figure-img"></p>
+<figcaption>キャリブレーションプロット (within-user)</figcaption>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="part-別の性能" class="level3">
+<h3 class="anchored" data-anchor-id="part-別の性能">5.5 Part 別の性能</h3>
+<div id="cell-auc-by-part" class="cell" data-execution_count="21">
+<details class="code-fold">
+<summary>コードを表示</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb34"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a>wu_late_preds <span class="op">=</span> wu_late.with_columns(</span>
+<span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a>    pl.Series(<span class="st">"irt_prob"</span>, wu_irt_probs),</span>
+<span id="cb34-3"><a href="#cb34-3" aria-hidden="true" tabindex="-1"></a>    pl.Series(<span class="st">"bkt_prob"</span>, wu_bkt_probs),</span>
+<span id="cb34-4"><a href="#cb34-4" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb34-5"><a href="#cb34-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb34-6"><a href="#cb34-6" aria-hidden="true" tabindex="-1"></a>parts <span class="op">=</span> <span class="bu">sorted</span>(wu_late_preds[<span class="st">"part"</span>].unique().to_list())</span>
+<span id="cb34-7"><a href="#cb34-7" aria-hidden="true" tabindex="-1"></a>irt_aucs <span class="op">=</span> []</span>
+<span id="cb34-8"><a href="#cb34-8" aria-hidden="true" tabindex="-1"></a>bkt_aucs <span class="op">=</span> []</span>
+<span id="cb34-9"><a href="#cb34-9" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> part <span class="kw">in</span> parts:</span>
+<span id="cb34-10"><a href="#cb34-10" aria-hidden="true" tabindex="-1"></a>    sub <span class="op">=</span> wu_late_preds.<span class="bu">filter</span>(pl.col(<span class="st">"part"</span>) <span class="op">==</span> part)</span>
+<span id="cb34-11"><a href="#cb34-11" aria-hidden="true" tabindex="-1"></a>    yt <span class="op">=</span> sub[<span class="st">"correct"</span>].to_numpy().astype(np.int64)</span>
+<span id="cb34-12"><a href="#cb34-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">len</span>(np.unique(yt)) <span class="op">&lt;</span> <span class="dv">2</span>:</span>
+<span id="cb34-13"><a href="#cb34-13" aria-hidden="true" tabindex="-1"></a>        irt_aucs.append(np.nan)</span>
+<span id="cb34-14"><a href="#cb34-14" aria-hidden="true" tabindex="-1"></a>        bkt_aucs.append(np.nan)</span>
+<span id="cb34-15"><a href="#cb34-15" aria-hidden="true" tabindex="-1"></a>        <span class="cf">continue</span></span>
+<span id="cb34-16"><a href="#cb34-16" aria-hidden="true" tabindex="-1"></a>    irt_aucs.append(roc_auc_score(yt, sub[<span class="st">"irt_prob"</span>].to_numpy()))</span>
+<span id="cb34-17"><a href="#cb34-17" aria-hidden="true" tabindex="-1"></a>    bkt_aucs.append(roc_auc_score(yt, sub[<span class="st">"bkt_prob"</span>].to_numpy()))</span>
+<span id="cb34-18"><a href="#cb34-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb34-19"><a href="#cb34-19" aria-hidden="true" tabindex="-1"></a>x <span class="op">=</span> np.arange(<span class="bu">len</span>(parts))</span>
+<span id="cb34-20"><a href="#cb34-20" aria-hidden="true" tabindex="-1"></a>width <span class="op">=</span> <span class="fl">0.35</span></span>
+<span id="cb34-21"><a href="#cb34-21" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">10</span>, <span class="dv">5</span>))</span>
+<span id="cb34-22"><a href="#cb34-22" aria-hidden="true" tabindex="-1"></a>ax.bar(x <span class="op">-</span> width <span class="op">/</span> <span class="dv">2</span>, irt_aucs, width, label<span class="op">=</span><span class="st">"IRT 2PL"</span>, color<span class="op">=</span>BLUE, alpha<span class="op">=</span><span class="fl">0.8</span>)</span>
+<span id="cb34-23"><a href="#cb34-23" aria-hidden="true" tabindex="-1"></a>ax.bar(x <span class="op">+</span> width <span class="op">/</span> <span class="dv">2</span>, bkt_aucs, width, label<span class="op">=</span><span class="st">"BKT"</span>, color<span class="op">=</span>ORANGE, alpha<span class="op">=</span><span class="fl">0.8</span>)</span>
+<span id="cb34-24"><a href="#cb34-24" aria-hidden="true" tabindex="-1"></a>ax.set_xticks(x)</span>
+<span id="cb34-25"><a href="#cb34-25" aria-hidden="true" tabindex="-1"></a>ax.set_xticklabels([<span class="ss">f"Part </span><span class="sc">{</span>p<span class="sc">}</span><span class="ss">"</span> <span class="cf">for</span> p <span class="kw">in</span> parts])</span>
+<span id="cb34-26"><a href="#cb34-26" aria-hidden="true" tabindex="-1"></a>ax.set_ylabel(<span class="st">"AUC-ROC"</span>)</span>
+<span id="cb34-27"><a href="#cb34-27" aria-hidden="true" tabindex="-1"></a>ax.set_title(<span class="st">"TOEIC Part 別の予測性能 (within-user)"</span>)</span>
+<span id="cb34-28"><a href="#cb34-28" aria-hidden="true" tabindex="-1"></a>ax.legend()</span>
+<span id="cb34-29"><a href="#cb34-29" aria-hidden="true" tabindex="-1"></a>ax.set_ylim(<span class="fl">0.4</span>, <span class="fl">0.85</span>)</span>
+<span id="cb34-30"><a href="#cb34-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb34-31"><a href="#cb34-31" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i, (ia, ba) <span class="kw">in</span> <span class="bu">enumerate</span>(<span class="bu">zip</span>(irt_aucs, bkt_aucs, strict<span class="op">=</span><span class="va">True</span>)):</span>
+<span id="cb34-32"><a href="#cb34-32" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="kw">not</span> np.isnan(ia):</span>
+<span id="cb34-33"><a href="#cb34-33" aria-hidden="true" tabindex="-1"></a>        ax.text(i <span class="op">-</span> width <span class="op">/</span> <span class="dv">2</span>, ia <span class="op">+</span> <span class="fl">0.005</span>, <span class="ss">f"</span><span class="sc">{</span>ia<span class="sc">:.2f}</span><span class="ss">"</span>, ha<span class="op">=</span><span class="st">"center"</span>, va<span class="op">=</span><span class="st">"bottom"</span>, fontsize<span class="op">=</span><span class="dv">8</span>)</span>
+<span id="cb34-34"><a href="#cb34-34" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="kw">not</span> np.isnan(ba):</span>
+<span id="cb34-35"><a href="#cb34-35" aria-hidden="true" tabindex="-1"></a>        ax.text(i <span class="op">+</span> width <span class="op">/</span> <span class="dv">2</span>, ba <span class="op">+</span> <span class="fl">0.005</span>, <span class="ss">f"</span><span class="sc">{</span>ba<span class="sc">:.2f}</span><span class="ss">"</span>, ha<span class="op">=</span><span class="st">"center"</span>, va<span class="op">=</span><span class="st">"bottom"</span>, fontsize<span class="op">=</span><span class="dv">8</span>)</span>
+<span id="cb34-36"><a href="#cb34-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb34-37"><a href="#cb34-37" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb34-38"><a href="#cb34-38" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-display">
+<div id="auc-by-part" class="quarto-figure quarto-figure-center anchored">
+<figure class="figure">
+<p><img src="02-irt-bkt_files/figure-html/auc-by-part-output-1.png" width="950" height="469" class="figure-img"></p>
+<figcaption>TOEIC Part 別 AUC-ROC (within-user)</figcaption>
+</figure>
+</div>
+</div>
+</div>
+</section>
+</section>
+<section id="考察" class="level2">
+<h2 class="anchored" data-anchor-id="考察">6. 考察</h2>
+<section id="実験結果のまとめ" class="level3">
+<h3 class="anchored" data-anchor-id="実験結果のまとめ">6.1 実験結果のまとめ</h3>
+<div id="summary-table" class="cell" data-execution_count="22">
+<details class="code-fold">
+<summary>コードを表示</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb35"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"="</span> <span class="op">*</span> <span class="dv">65</span>)</span>
+<span id="cb35-2"><a href="#cb35-2" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span><span class="st">''</span><span class="sc">:20s}</span><span class="ss"> </span><span class="sc">{</span><span class="st">'IRT 2PL'</span><span class="sc">:&gt;12s}</span><span class="ss"> </span><span class="sc">{</span><span class="st">'BKT'</span><span class="sc">:&gt;12s}</span><span class="ss"> </span><span class="sc">{</span><span class="st">'差'</span><span class="sc">:&gt;12s}</span><span class="ss">"</span>)</span>
+<span id="cb35-3"><a href="#cb35-3" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"-"</span> <span class="op">*</span> <span class="dv">65</span>)</span>
+<span id="cb35-4"><a href="#cb35-4" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"--- Within-user (知識状態推定) ---"</span>)</span>
+<span id="cb35-5"><a href="#cb35-5" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span><span class="st">'  AUC-ROC'</span><span class="sc">:20s}</span><span class="ss"> </span><span class="sc">{</span>wu_irt_eval<span class="sc">.</span>auc_roc<span class="sc">:&gt;12.3f}</span><span class="ss"> </span><span class="sc">{</span>wu_bkt_eval<span class="sc">.</span>auc_roc<span class="sc">:&gt;12.3f}</span><span class="ss"> </span><span class="sc">{</span>wu_irt_eval<span class="sc">.</span>auc_roc <span class="op">-</span> wu_bkt_eval<span class="sc">.</span>auc_roc<span class="sc">:&gt;+12.3f}</span><span class="ss">"</span>)</span>
+<span id="cb35-6"><a href="#cb35-6" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span><span class="st">'  Accuracy'</span><span class="sc">:20s}</span><span class="ss"> </span><span class="sc">{</span>wu_irt_eval<span class="sc">.</span>accuracy<span class="sc">:&gt;12.3f}</span><span class="ss"> </span><span class="sc">{</span>wu_bkt_eval<span class="sc">.</span>accuracy<span class="sc">:&gt;12.3f}</span><span class="ss"> </span><span class="sc">{</span>wu_irt_eval<span class="sc">.</span>accuracy <span class="op">-</span> wu_bkt_eval<span class="sc">.</span>accuracy<span class="sc">:&gt;+12.3f}</span><span class="ss">"</span>)</span>
+<span id="cb35-7"><a href="#cb35-7" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span><span class="st">'  Log Loss'</span><span class="sc">:20s}</span><span class="ss"> </span><span class="sc">{</span>wu_irt_eval<span class="sc">.</span>log_loss<span class="sc">:&gt;12.4f}</span><span class="ss"> </span><span class="sc">{</span>wu_bkt_eval<span class="sc">.</span>log_loss<span class="sc">:&gt;12.4f}</span><span class="ss"> </span><span class="sc">{</span>wu_irt_eval<span class="sc">.</span>log_loss <span class="op">-</span> wu_bkt_eval<span class="sc">.</span>log_loss<span class="sc">:&gt;+12.4f}</span><span class="ss">"</span>)</span>
+<span id="cb35-8"><a href="#cb35-8" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"--- User-level (cold-start) ---"</span>)</span>
+<span id="cb35-9"><a href="#cb35-9" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span><span class="st">'  AUC-ROC'</span><span class="sc">:20s}</span><span class="ss"> </span><span class="sc">{</span>cs_irt_eval<span class="sc">.</span>auc_roc<span class="sc">:&gt;12.3f}</span><span class="ss"> </span><span class="sc">{</span>cs_bkt_eval<span class="sc">.</span>auc_roc<span class="sc">:&gt;12.3f}</span><span class="ss"> </span><span class="sc">{</span>cs_irt_eval<span class="sc">.</span>auc_roc <span class="op">-</span> cs_bkt_eval<span class="sc">.</span>auc_roc<span class="sc">:&gt;+12.3f}</span><span class="ss">"</span>)</span>
+<span id="cb35-10"><a href="#cb35-10" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"="</span> <span class="op">*</span> <span class="dv">65</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>=================================================================
+                          IRT 2PL          BKT            差
+-----------------------------------------------------------------
+--- Within-user (知識状態推定) ---
+  AUC-ROC                   0.571        0.618       -0.046
+  Accuracy                  0.646        0.688       -0.042
+  Log Loss                 0.6418       0.6058      +0.0360
+--- User-level (cold-start) ---
+  AUC-ROC                   0.556        0.566       -0.010
+=================================================================</code></pre>
+</div>
+</div>
+</section>
+<section id="irt-の強みと限界" class="level3">
+<h3 class="anchored" data-anchor-id="irt-の強みと限界">6.2 IRT の強みと限界</h3>
+<p><strong>パラメータ推定の質は高い。</strong> θ vs 実正答率の相関（3.5 節）が示すように、IRT は学習ユーザーの能力を正確に捉えている。難易度 b もコンセプト別正答率と高い負の相関を示し、出題戦略の入力として信頼できる。ZPD 分析（3.6 節）により、各ユーザーの「最適難易度帯」を定量的に特定できた。</p>
+<p><strong>cold-start が致命的。</strong> ユーザーレベル分割（5.3 節）の AUC が示す通り、未知ユーザーに対しては θ=0 にフォールバックし、コンセプト難易度の傾斜だけで予測する。θ の推定には MCMC が必要で、新規ユーザーへのリアルタイム適用は困難。また、θ は系列全体で一定のため、EDA（01）で確認した学習曲線（序盤 50% → 100 問超で 65-70%）は原理的に捉えられない。</p>
+</section>
+<section id="bkt-の強みと限界" class="level3">
+<h3 class="anchored" data-anchor-id="bkt-の強みと限界">6.3 BKT の強みと限界</h3>
+<p><strong>スキル別の学習動態を追跡できる。</strong> 4.4 節の P(mastery) 推移が示すように、learn rate が高いスキルでは数ステップで習得が確認でき、低いスキルでは誤答が続くと P(mastery) が崩壊する。within-user 評価（5.2 節）の AUC は、この動的追跡が予測精度に寄与していることを示す。</p>
+<p><strong>スキル間の独立仮定が制約。</strong> 各スキルを独立に推定するため、「文法力が高い人はリーディングも得意」といった相関を捉えられない。また、P(L₀) と初回正答率の相関（4.5 節）は中程度であり、guess/slip パラメータとの識別可能性に課題がある。</p>
+</section>
+<section id="出題戦略-04-に向けて" class="level3">
+<h3 class="anchored" data-anchor-id="出題戦略-04-に向けて">6.4 出題戦略 (04) に向けて</h3>
+<p>IRT と BKT は、新規ユーザーに対しても <strong>コンセプト側の情報</strong> として有用である。</p>
+<ul>
+<li><strong>IRT の b / a パラメータ</strong>: 難易度と識別力が分かれば、新規ユーザーにも「難易度順の出題」「識別力が高い問題を優先して能力を素早く推定」といった戦略が取れる</li>
+<li><strong>BKT の learn rate</strong>: learn rate が高いスキルから出題すれば、短い系列でも習得判定ができ、学習者のモチベーション維持に繋がる</li>
+</ul>
+<p>出題戦略（ノートブック 04）では、数問の応答から IRT の θ を逐次更新する adaptive testing と、BKT の P(mastery) による習得判定を組み合わせた方針を検討する。</p>
+</section>
+<section id="深層-kt-03-で何を解決すべきか" class="level3">
+<h3 class="anchored" data-anchor-id="深層-kt-03-で何を解決すべきか">6.5 深層 KT (03) で何を解決すべきか</h3>
+<p>古典モデルの限界は明確になった。深層 KT モデルに期待するのは以下である。</p>
+<ol type="1">
+<li><strong>未知ユーザーへの汎化</strong> — embedding を通じて、数問の応答から個人化された予測に切り替わる能力。user-level split での AUC 向上が直接の指標</li>
+<li><strong>スキル間の関連の学習</strong> — attention 機構で「文法 → リーディング」のような相関を捉え、within-user AUC を向上させる</li>
+<li><strong>スケーラビリティ</strong> — MCMC や skill-by-skill EM のような計算コスト制約なく、全ユーザーで推論可能</li>
+</ol>
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Tip</span>次のノートブック
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p><a href="03-deep-kt.qmd">03 Deep Knowledge Tracing</a> — DKT / SAKT / SimpleKT の実装と比較。古典モデルの within-user AUC をどこまで超えられるか？</p>
+</div>
+</div>
+
+
+</section>
+</section>
+
+</main> <!-- /main -->
+<script type="application/vnd.jupyter.widget-state+json">
+{"state":{"076a38bccebb47f68ba04b5aebc26f7c":{"model_module":"@jupyter-widgets/base","model_module_version":"2.0.0","model_name":"LayoutModel","state":{"_model_module":"@jupyter-widgets/base","_model_module_version":"2.0.0","_model_name":"LayoutModel","_view_count":null,"_view_module":"@jupyter-widgets/base","_view_module_version":"2.0.0","_view_name":"LayoutView","align_content":null,"align_items":null,"align_self":null,"border_bottom":null,"border_left":null,"border_right":null,"border_top":null,"bottom":null,"display":null,"flex":null,"flex_flow":null,"grid_area":null,"grid_auto_columns":null,"grid_auto_flow":null,"grid_auto_rows":null,"grid_column":null,"grid_gap":null,"grid_row":null,"grid_template_areas":null,"grid_template_columns":null,"grid_template_rows":null,"height":null,"justify_content":null,"justify_items":null,"left":null,"margin":null,"max_height":null,"max_width":null,"min_height":null,"min_width":null,"object_fit":null,"object_position":null,"order":null,"overflow":null,"padding":null,"right":null,"top":null,"visibility":null,"width":null}},"f97d51c4474a4270b67829965b1233d7":{"model_module":"@jupyter-widgets/output","model_module_version":"1.0.0","model_name":"OutputModel","state":{"_dom_classes":[],"_model_module":"@jupyter-widgets/output","_model_module_version":"1.0.0","_model_name":"OutputModel","_view_count":null,"_view_module":"@jupyter-widgets/output","_view_module_version":"1.0.0","_view_name":"OutputView","layout":"IPY_MODEL_076a38bccebb47f68ba04b5aebc26f7c","msg_id":"14f24175-ee508587e730243ba0b13a02_2457_7","outputs":[{"data":{"text/html":"<pre style=\"white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace\">                                                                                                                   \n <span style=\"font-weight: bold\"> Progress                     </span> <span style=\"font-weight: bold\"> Draw </span> <span style=\"font-weight: bold\"> Divergences </span> <span style=\"font-weight: bold\"> Step size </span> <span style=\"font-weight: bold\"> Grad evals </span> <span style=\"font-weight: bold\"> Speed        </span> <span style=\"font-weight: bold\"> Elapsed </span> <span style=\"font-weight: bold\"> Remaining </span> \n ───────────────────────────────────────────────────────────────────────────────────────────────────────────────── \n  <span style=\"color: #1f77b4; text-decoration-color: #1f77b4\">━━━━━━━━━━━━━━━━━━━━━━━━━━╸</span><span style=\"color: #3a3a3a; text-decoration-color: #3a3a3a\">━</span>   1912   0             0.113       31           3.92 draws/s   0:08:07   0:00:16    \n  <span style=\"color: #1f77b4; text-decoration-color: #1f77b4\">━━━━━━━━━━━━━━━━━━━━━━━━━━╸</span><span style=\"color: #3a3a3a; text-decoration-color: #3a3a3a\">━</span>   1915   0             0.134       31           3.93 draws/s   0:08:07   0:00:15    \n                                                                                                                   \n</pre>\n","text/plain":"                                                                                                                   \n \u001b[1m \u001b[0m\u001b[1mProgress                    \u001b[0m\u001b[1m \u001b[0m \u001b[1m \u001b[0m\u001b[1mDraw\u001b[0m\u001b[1m \u001b[0m \u001b[1m \u001b[0m\u001b[1mDivergences\u001b[0m\u001b[1m \u001b[0m \u001b[1m \u001b[0m\u001b[1mStep size\u001b[0m\u001b[1m \u001b[0m \u001b[1m \u001b[0m\u001b[1mGrad evals\u001b[0m\u001b[1m \u001b[0m \u001b[1m \u001b[0m\u001b[1mSpeed       \u001b[0m\u001b[1m \u001b[0m \u001b[1m \u001b[0m\u001b[1mElapsed\u001b[0m\u001b[1m \u001b[0m \u001b[1m \u001b[0m\u001b[1mRemaining\u001b[0m\u001b[1m \u001b[0m \n ───────────────────────────────────────────────────────────────────────────────────────────────────────────────── \n  \u001b[38;2;31;119;180m━━━━━━━━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[38;2;31;119;180m╸\u001b[0m\u001b[38;5;237m━\u001b[0m   1912   0             0.113       31           3.92 draws/s   0:08:07   0:00:16    \n  \u001b[38;2;31;119;180m━━━━━━━━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[38;2;31;119;180m╸\u001b[0m\u001b[38;5;237m━\u001b[0m   1915   0             0.134       31           3.93 draws/s   0:08:07   0:00:15    \n                                                                                                                   \n"},"metadata":{},"output_type":"display_data"}],"tabbable":null,"tooltip":null}}},"version_major":2,"version_minor":0}
+</script>
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp('/' + window.location.host + '/');
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>

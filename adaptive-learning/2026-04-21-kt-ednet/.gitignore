@@ -1,0 +1,36 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Quarto
+_output/
+_site/
+.quarto/
+notebooks/.jupyter_cache/
+
+# Rendered HTML (local preview)
+CLAUDE.html
+CLAUDE_files/
+
+# Data (raw files are too large for git)
+data/raw/*
+!data/raw/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+
+# MLflow
+mlruns/
+
+# OS / IDE
+.DS_Store
+.env
+*.ipynb_checkpoints
+.vscode/
+
+/.quarto/
+**/*.quarto_ipynb
+.envrc
