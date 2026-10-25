@@ -1,0 +1,31 @@
+# データ（置かない。取得手順は各実験の README に書く）
+data/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# 秘密情報
+.env
+.envrc
+
+# Quarto / Jupyter
+_site/
+_output/
+.quarto/
+**/*.quarto_ipynb
+.jupyter_cache/
+.ipynb_checkpoints/
+
+# 実験の生成物
+mlruns/
+*.ckpt
+
+# OS / IDE
+.DS_Store
+.vscode/

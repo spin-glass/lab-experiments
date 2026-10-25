@@ -1,0 +1,8 @@
+.venv/
+_output/
+_freeze/
+.quarto/
+data/
+mlruns/
+**/__pycache__/
+**/*.pyc

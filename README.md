@@ -6,4 +6,4 @@
 - 分かったことは [lab-research-notes](https://github.com/spin-glass/lab-research-notes)（https://notes.spin-glass.dev）にノートとして残し、互いにリンクする
 - 案件固有の情報・データ・秘密情報は置かない
 
-構成と規約は CLAUDE.md（追加予定）を参照。
+構成と規約は [CLAUDE.md](CLAUDE.md) を参照。

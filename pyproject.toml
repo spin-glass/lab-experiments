@@ -1,0 +1,19 @@
+# uv workspace のルート。共通の開発ツールだけを持ち、実験の依存は各実験の pyproject.toml に書く。
+# 規約は CLAUDE.md を参照。
+
+[tool.uv.workspace]
+members = [
+    "recsys/*",
+    "adaptive-learning/*",
+    "anomaly-detection/*",
+    "misc/*",
+]
+
+[dependency-groups]
+dev = [
+    "pytest==9.1.1",
+    "ruff==0.17.0",
+]
+
+[tool.ruff]
+line-length = 100

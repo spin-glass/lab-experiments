@@ -1,0 +1,622 @@
+---
+title: "EdNet-KT1 探索的データ分析"
+subtitle: "55万インタラクションから読み解く TOEIC学習者の行動パターン"
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    code-fold: true
+    code-summary: "コードを表示"
+    theme: cosmo
+    fig-width: 10
+    fig-height: 5.5
+jupyter: python3
+execute:
+  cache: true
+  warning: false
+---
+
+## はじめに — このノートブックの目的
+
+**EdNet-KT1** は、韓国の AI 教育企業 Riiid が公開した世界最大級の学習行動ログデータセットである。TOEIC 対策アプリ *Santa* の実ユーザーから収集された約 78 万人・1.3 億行のインタラクションを含む。
+
+本ノートブックでは、そのうち **5,000 ユーザー・約 55 万行** のサンプルを対象に、以下の問いに答える:
+
+1. **誰が学んでいるのか** — ユーザーのエンゲージメント構造と二極化
+2. **何を解いているのか** — TOEIC Part 別・スキルタグ別の出題と正答率
+3. **どう解いているのか** — 解答時間の分布と異常値
+4. **学習は進んでいるのか** — 系列内の正答率推移（学習曲線）
+
+最終的に、Knowledge Tracing (KT) モデルの学習に向けた前処理方針を導出する。
+
+::: {.callout-note}
+実行前に `make download` で `data/raw/KT1/` と `questions.csv` を配置しておくこと。
+:::
+
+## 1. セットアップ
+
+```{python}
+#| label: setup
+from pathlib import Path
+import polars as pl
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
+
+# --- Project paths ---
+PROJECT_ROOT = next(
+    p for p in [Path.cwd(), *Path.cwd().parents] if (p / "pyproject.toml").exists()
+)
+RAW_DIR = PROJECT_ROOT / "data" / "raw"
+PROCESSED_DIR = PROJECT_ROOT / "data" / "processed"
+N_USERS = 5_000
+SEED = 42
+
+# --- Japanese font ---
+import matplotlib.font_manager as fm
+
+jp_fonts = [
+    f.name for f in fm.fontManager.ttflist
+    if "Hiragino" in f.name or "Gothic" in f.name or "Noto Sans CJK" in f.name
+]
+if jp_fonts:
+    plt.rcParams["font.family"] = jp_fonts[0]
+plt.rcParams["axes.unicode_minus"] = False
+
+# --- Palette ---
+BLUE = "#4C72B0"
+ORANGE = "#DD8452"
+GREEN = "#55A868"
+RED = "#C44E52"
+```
+
+```{python}
+#| label: load-data
+from src.data.sample import build_sample
+
+result = build_sample(RAW_DIR, n_users=N_USERS, seed=SEED, processed_dir=PROCESSED_DIR)
+df = result.df
+seq_lens = df.group_by("user_id").agg(pl.len().alias("n"))
+```
+
+## 2. データの全体像
+
+このサンプルの規模感を把握する。
+
+```{python}
+#| label: tbl-overview
+summary = {
+    "ユーザー数": f"{result.n_users:,}",
+    "総インタラクション数": f"{result.n_rows:,}",
+    "ユニーク問題数": f"{df['question_id'].n_unique():,}",
+    "ユニークバンドル数": f"{df['bundle_id'].n_unique():,}",
+    "ユニークスキルタグ数": f"{df.explode('tags').filter(pl.col('tags').is_not_null())['tags'].n_unique():,}",
+    "データ期間": f"{__import__('datetime').datetime.fromtimestamp(df['timestamp'].min()/1000).strftime('%Y-%m-%d')} 〜 {__import__('datetime').datetime.fromtimestamp(df['timestamp'].max()/1000).strftime('%Y-%m-%d')}",
+    "全体正答率": f"{df.filter(pl.col('correct').is_not_null())['correct'].mean():.1%}",
+    "correct 欠損行": f"{df.filter(pl.col('correct').is_null()).height:,}",
+}
+pl.DataFrame({"指標": list(summary.keys()), "値": list(summary.values())})
+```
+
+5,000 ユーザーで **約 55 万行**、問題プールは **11,942 問** × **188 スキルタグ**。
+データは **2017-05 〜 2019-12** の約 2.5 年間をカバーする。
+全体正答率は **65.1%** と一見高いが、これはヘビーユーザー（正答率が高い）の行数が大きいためであり、ユーザー単位で見ると様相が異なる。次節でこの構造を明らかにする。
+
+## 3. 誰が学んでいるのか — ユーザーエンゲージメントの二極化
+
+### 3.1 系列長の分布
+
+```{python}
+#| label: fig-seq-len
+#| fig-cap: "図1: ユーザーごとの解答系列長 — ヒストグラムと累積分布"
+n_arr = seq_lens["n"].to_numpy()
+
+fig, axes = plt.subplots(1, 2, figsize=(13, 5))
+
+# Left: log-scale histogram
+ax = axes[0]
+ax.hist(n_arr, bins=np.logspace(0, np.log10(n_arr.max()), 50),
+        color=BLUE, edgecolor="white", linewidth=0.3)
+ax.set_xscale("log")
+ax.set_xlabel("系列長（問題数, log スケール）")
+ax.set_ylabel("ユーザー数")
+ax.set_title("系列長ヒストグラム", fontweight="bold")
+ax.axvline(np.median(n_arr), color="tomato", ls="--", lw=1.5,
+           label=f"中央値 = {int(np.median(n_arr))}")
+ax.legend(fontsize=9)
+
+# Right: ECDF
+ax2 = axes[1]
+sorted_n = np.sort(n_arr)
+ecdf = np.arange(1, len(sorted_n) + 1) / len(sorted_n)
+ax2.plot(sorted_n, ecdf, color=BLUE, lw=1.5)
+ax2.set_xscale("log")
+ax2.set_xlabel("系列長（問題数, log スケール）")
+ax2.set_ylabel("累積割合")
+ax2.set_title("累積分布関数 (ECDF)", fontweight="bold")
+for q, lbl in [(10, "10以下"), (100, "100以下"), (500, "500以下")]:
+    frac = np.mean(n_arr <= q)
+    ax2.axhline(frac, color="gray", ls=":", lw=0.8, alpha=0.5)
+    ax2.annotate(f"{lbl}: {frac:.0%}", xy=(q, frac),
+                 fontsize=8, color="gray", ha="right")
+
+fig.tight_layout()
+plt.show()
+```
+
+系列長の分布は典型的な **冪則 (power-law)** を示す。中央値はわずか **11 問** — つまり半数のユーザーは 10 問程度で離脱している。一方、上位数パーセントのヘビーユーザーは数千問を解いている。
+
+### 3.2 エンゲージメントセグメント
+
+ユーザーを解答数で4段階に分類し、各セグメントがデータに占める比重を可視化する。
+
+```{python}
+#| label: fig-segments
+#| fig-cap: "図2: エンゲージメントセグメント — ユーザー構成比 vs データ構成比"
+segments = [
+    ("Casual\n(10問以下)", 0, 10),
+    ("Moderate\n(11-100問)", 10, 100),
+    ("Active\n(101-500問)", 100, 500),
+    ("Power\n(500問超)", 500, 100_000),
+]
+
+seg_data = []
+for label, lo, hi in segments:
+    uids = seq_lens.filter((pl.col("n") > lo) & (pl.col("n") <= hi))
+    n_users = uids.height
+    n_rows = df.join(uids.select("user_id"), on="user_id").height
+    seg_df = df.join(uids.select("user_id"), on="user_id").filter(pl.col("correct").is_not_null())
+    acc = float(seg_df["correct"].mean()) if seg_df.height > 0 else 0
+    seg_data.append((label, n_users, n_rows, acc))
+
+labels_seg = [s[0] for s in seg_data]
+users_pct = [s[1] / N_USERS for s in seg_data]
+rows_pct = [s[2] / result.n_rows for s in seg_data]
+accs_seg = [s[3] for s in seg_data]
+colors_seg = [RED, ORANGE, GREEN, BLUE]
+
+fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+
+# Users pie
+axes[0].pie(users_pct, labels=labels_seg, colors=colors_seg,
+            autopct="%1.0f%%", startangle=90, textprops={"fontsize": 9})
+axes[0].set_title("ユーザー構成比", fontweight="bold")
+
+# Rows pie
+axes[1].pie(rows_pct, labels=labels_seg, colors=colors_seg,
+            autopct="%1.0f%%", startangle=90, textprops={"fontsize": 9})
+axes[1].set_title("データ行数構成比", fontweight="bold")
+
+# Accuracy bars
+bars = axes[2].barh(labels_seg, accs_seg, color=colors_seg, height=0.6)
+axes[2].set_xlim(0, 1)
+axes[2].xaxis.set_major_formatter(ticker.PercentFormatter(1.0))
+axes[2].set_title("セグメント別正答率", fontweight="bold")
+for bar, a in zip(bars, accs_seg):
+    axes[2].text(a + 0.02, bar.get_y() + bar.get_height() / 2,
+                 f"{a:.1%}", va="center", fontsize=9)
+
+fig.tight_layout()
+plt.show()
+```
+
+ここに**データの核心的な不均衡**がある:
+
+- **Casual ユーザー (≤10問)** はユーザーの **48%** を占めるが、データ行数ではわずか **2.5%**
+- **Power ユーザー (500問超)** はユーザーの **5%** に過ぎないが、データの **67%** を生成
+- 正答率も Casual **44.8%** → Power **68.4%** と **23.6pp** の開きがある
+
+KT モデルはこの Power ユーザーの長い系列から主に学習することになる。Casual ユーザーの短い系列では正答率予測の精度が低くなりやすく、cold-start 問題に直結する。
+
+### 3.3 ユーザー別正答率の分布
+
+```{python}
+#| label: fig-user-acc
+#| fig-cap: "図3: ユーザー別正答率の分布"
+user_acc = (
+    df.filter(pl.col("correct").is_not_null())
+    .group_by("user_id")
+    .agg(pl.col("correct").mean().alias("user_acc"))
+)
+ua = user_acc["user_acc"].to_numpy()
+
+fig, ax = plt.subplots(figsize=(9, 4.5))
+ax.hist(ua, bins=50, color=BLUE, edgecolor="white", linewidth=0.4, density=True)
+ax.axvline(np.median(ua), color="tomato", ls="--", lw=1.5,
+           label=f"中央値 = {np.median(ua):.0%}")
+ax.axvline(np.mean(ua), color=ORANGE, ls=":", lw=1.5,
+           label=f"平均 = {np.mean(ua):.0%}")
+ax.set_xlabel("ユーザー別正答率")
+ax.set_ylabel("密度")
+ax.set_title("ユーザー別正答率の分布", fontsize=13, fontweight="bold")
+ax.xaxis.set_major_formatter(ticker.PercentFormatter(1.0))
+ax.legend(fontsize=9)
+fig.tight_layout()
+plt.show()
+```
+
+ユーザー単位の平均正答率は**中央値 50%、平均 49%** と、全体の 65% よりも大幅に低い。
+分布は 0% 付近と 100% 付近に集中する**U字型**で、「ほとんど正解できないユーザー」と「ほぼ全問正解するユーザー」が共存している。これは Casual ユーザー（数問しか解かず偏った結果になる）の影響が大きい。
+
+## 4. 何を解いているのか — 問題とスキルの構造
+
+### 4.1 問題ごとの出題頻度と正答率
+
+```{python}
+#| label: fig-question-scatter
+#| fig-cap: "図4: 問題ごとの出題回数 vs 正答率（色 = 出題回数の対数）"
+q_stats = (
+    df.group_by("question_id")
+    .agg(
+        pl.len().alias("n_attempts"),
+        pl.col("correct").mean().alias("acc"),
+    )
+    .sort("n_attempts", descending=True)
+)
+n_att = q_stats["n_attempts"].to_numpy()
+acc_q = q_stats["acc"].to_numpy()
+
+fig, ax = plt.subplots(figsize=(9, 5.5))
+sc = ax.scatter(n_att, acc_q, c=np.log10(n_att), cmap="viridis",
+                s=6, alpha=0.5, edgecolors="none")
+ax.set_xscale("log")
+ax.set_xlabel("出題回数 (log)")
+ax.set_ylabel("正答率")
+ax.yaxis.set_major_formatter(ticker.PercentFormatter(1.0))
+ax.set_title("問題ごとの出題頻度と正答率", fontsize=13, fontweight="bold")
+cbar = fig.colorbar(sc, ax=ax, label="log₁₀(出題回数)")
+fig.tight_layout()
+plt.show()
+```
+
+**11,942 問**の正答率は 0% 〜 100% まで広く分布し、アイテムプールの難易度多様性は高い。出題回数が少ない問題ほど正答率の分散が大きい（サンプルサイズ効果）。高頻度問題は正答率 50-80% 帯に集中しており、アダプティブ出題の効果が示唆される。
+
+### 4.2 TOEIC Part 別の出題量と正答率
+
+```{python}
+#| label: fig-part
+#| fig-cap: "図5: TOEIC Part 別の出題数と正答率"
+part_stats = (
+    df.group_by("part")
+    .agg(
+        pl.len().alias("n"),
+        pl.col("correct").mean().alias("acc"),
+        pl.col("elapsed_time").median().alias("median_time_ms"),
+    )
+    .sort("part")
+)
+
+part_labels = {
+    1: "P1 写真描写", 2: "P2 応答", 3: "P3 会話",
+    4: "P4 説明文", 5: "P5 短文穴埋め",
+    6: "P6 長文穴埋め", 7: "P7 読解",
+}
+parts = part_stats["part"].to_numpy()
+counts = part_stats["n"].to_numpy()
+accs_p = part_stats["acc"].to_numpy()
+labels_p = [part_labels.get(int(p), f"P{p}") for p in parts]
+
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+
+# Left: bar chart of counts
+colors_p = plt.cm.Set2(np.linspace(0, 1, 7))
+ax1.barh(labels_p[::-1], counts[::-1], color=colors_p[::-1], height=0.6)
+ax1.set_xlabel("出題数")
+ax1.set_title("Part 別出題数", fontweight="bold")
+for i, (c, l) in enumerate(zip(counts[::-1], labels_p[::-1])):
+    ax1.text(c + 1000, i, f"{c:,}", va="center", fontsize=8)
+
+# Right: accuracy with median elapsed time
+ax2.barh(labels_p[::-1], accs_p[::-1], color=colors_p[::-1], height=0.6)
+ax2.set_xlim(0, 1)
+ax2.xaxis.set_major_formatter(ticker.PercentFormatter(1.0))
+ax2.set_title("Part 別正答率", fontweight="bold")
+for i, a in enumerate(accs_p[::-1]):
+    ax2.text(a + 0.01, i, f"{a:.1%}", va="center", fontsize=8)
+
+fig.tight_layout()
+plt.show()
+```
+
+| パターン | 詳細 |
+|---|---|
+| **出題量** | Part 5 (短文穴埋め) が **23 万行**で圧倒的に多い。1問完結で出題しやすいためと考えられる |
+| **正答率** | リスニング (P1-P4) が **63-75%** と高く、リーディング (P5-P7) が **59-68%** と低い |
+| **最難関** | Part 5 の正答率 **59.5%** が最も低く、語彙・文法の弱点を反映 |
+
+### 4.3 スキルタグ別の正答率
+
+```{python}
+#| label: fig-tags
+#| fig-cap: "図6: 上位20スキルタグの正答率（出題数による色分け）"
+tag_stats = (
+    df.explode("tags")
+    .group_by("tags")
+    .agg(
+        pl.len().alias("n"),
+        pl.col("correct").mean().alias("acc"),
+    )
+    .sort("n", descending=True)
+)
+top20 = tag_stats.head(20).sort("acc")
+
+tags_arr = top20["tags"].cast(pl.Utf8).to_numpy()
+acc_arr = top20["acc"].to_numpy()
+n_tags = top20["n"].to_numpy()
+
+fig, ax = plt.subplots(figsize=(9, 6))
+colors_t = plt.cm.YlOrRd(n_tags / n_tags.max())
+bars = ax.barh(tags_arr, acc_arr, color=colors_t, height=0.7)
+ax.set_xlim(0, 1)
+ax.xaxis.set_major_formatter(ticker.PercentFormatter(1.0))
+ax.set_xlabel("正答率")
+ax.set_title("上位20スキルタグの正答率", fontsize=13, fontweight="bold")
+
+# Colorbar for count
+import matplotlib.cm as cm
+sm = cm.ScalarMappable(cmap="YlOrRd",
+                       norm=plt.Normalize(vmin=n_tags.min(), vmax=n_tags.max()))
+sm.set_array([])
+fig.colorbar(sm, ax=ax, label="出題数", shrink=0.8)
+
+fig.tight_layout()
+plt.show()
+```
+
+**188 種のスキルタグ** は TOEIC の個別スキル（語彙、文法項目、リスニング戦略等）に対応する。タグ間の正答率差は最大で **30pp 以上**あり、KT モデルが concept-level で知識状態を推定するための情報源として有効である。1問あたり平均 **2.4 タグ**が付与されており、multi-skill 構造を持つ。
+
+## 5. どう解いているのか — 解答時間の分析
+
+### 5.1 解答時間の全体分布と Part 別比較
+
+```{python}
+#| label: fig-elapsed
+#| fig-cap: "図7: 解答時間の分布 — 全体ヒストグラム (左) と Part 別箱ひげ図 (右)"
+elapsed_sec = df.with_columns(
+    (pl.col("elapsed_time") / 1000).alias("elapsed_sec")
+)
+
+fig, axes = plt.subplots(1, 2, figsize=(13, 5))
+
+# Left: overall histogram (capped at 120sec)
+ax = axes[0]
+e = elapsed_sec.filter(pl.col("elapsed_sec") <= 120)["elapsed_sec"].to_numpy()
+ax.hist(e, bins=60, color=BLUE, edgecolor="white", linewidth=0.3, density=True)
+ax.axvline(np.median(e), color="tomato", ls="--", lw=1.5,
+           label=f"中央値 = {np.median(e):.0f}秒")
+ax.set_xlabel("解答時間 (秒)")
+ax.set_ylabel("密度")
+ax.set_title("解答時間の分布（120秒以下）", fontweight="bold")
+ax.legend(fontsize=9)
+
+# Right: Part-wise boxplot
+ax = axes[1]
+box_data = []
+part_labels_short = []
+for p in range(1, 8):
+    vals = elapsed_sec.filter(
+        (pl.col("part") == p) & (pl.col("elapsed_sec") <= 120)
+    )["elapsed_sec"].to_numpy()
+    box_data.append(vals)
+    part_labels_short.append(f"P{p}")
+
+bp = ax.boxplot(box_data, tick_labels=part_labels_short, patch_artist=True,
+                showfliers=False, medianprops={"color": "black", "lw": 1.5})
+for patch, c in zip(bp["boxes"], plt.cm.Set2(np.linspace(0, 1, 7))):
+    patch.set_facecolor(c)
+ax.set_ylabel("解答時間 (秒)")
+ax.set_title("Part 別解答時間", fontweight="bold")
+
+fig.tight_layout()
+plt.show()
+```
+
+解答時間の中央値は約 **22 秒**。Part 4 (説明文リスニング) と Part 7 (長文読解) は中央値が 40-50 秒超と長い一方、Part 1 (写真描写) や Part 5 (短文穴埋め) は 15-20 秒で速い。
+
+### 5.2 解答時間の外れ値
+
+```{python}
+#| label: tbl-outlier
+total = len(df)
+outlier_data = {
+    "条件": ["0 ms（未回答/バグ）", "< 1秒（推測回答）", "> 60秒", "> 5分"],
+    "件数": [
+        f"{df.filter(pl.col('elapsed_time') == 0).height:,}",
+        f"{df.filter(pl.col('elapsed_time') < 1000).height:,}",
+        f"{df.filter(pl.col('elapsed_time') > 60_000).height:,}",
+        f"{df.filter(pl.col('elapsed_time') > 300_000).height:,}",
+    ],
+    "割合": [
+        f"{df.filter(pl.col('elapsed_time') == 0).height / total:.2%}",
+        f"{df.filter(pl.col('elapsed_time') < 1000).height / total:.2%}",
+        f"{df.filter(pl.col('elapsed_time') > 60_000).height / total:.2%}",
+        f"{df.filter(pl.col('elapsed_time') > 300_000).height / total:.2%}",
+    ],
+}
+pl.DataFrame(outlier_data)
+```
+
+- **0 ms** の行が 0.3% (1,665件) 存在 — アプリの不具合か未回答
+- **1秒未満**は 0.5% — 問題を読まずに推測した可能性が高い
+- **5分超**は 0.07% — 離席・中断と推測
+
+→ KT モデル学習時は `elapsed_time < 1000 ms` と `> 300,000 ms` を除外またはクリッピングする方針を推奨。
+
+### 5.3 解答時間と正答の関係
+
+```{python}
+#| label: fig-elapsed-correct
+#| fig-cap: "図8: 正解/不正解別の解答時間分布"
+corr_data = df.filter(
+    pl.col("correct").is_not_null()
+    & (pl.col("elapsed_time") > 0)
+    & (pl.col("elapsed_time") <= 120_000)
+)
+
+fig, ax = plt.subplots(figsize=(9, 4.5))
+for val, label, color in [(1, "正解", GREEN), (0, "不正解", RED)]:
+    subset = corr_data.filter(pl.col("correct") == val)["elapsed_time"].to_numpy() / 1000
+    ax.hist(subset, bins=60, alpha=0.5, color=color, label=label,
+            density=True, edgecolor="white", linewidth=0.3)
+ax.set_xlabel("解答時間 (秒)")
+ax.set_ylabel("密度")
+ax.set_title("正解/不正解別の解答時間分布", fontsize=13, fontweight="bold")
+ax.legend(fontsize=10)
+fig.tight_layout()
+plt.show()
+```
+
+解答時間と正誤のピアソン相関は **r = −0.059** とほぼ無相関だが、分布を重ねると**正解群の方がやや短時間寄り**であることがわかる。これは「知っている問題は素早く解ける」という直感と整合する。ただし、この特徴量だけで正誤を予測する力は弱い。
+
+## 6. 学習は進んでいるのか — 系列内の正答率推移
+
+```{python}
+#| label: fig-learning-curve
+#| fig-cap: "図9: ユーザー内の解答順序と正答率の推移（学習曲線）"
+rank_acc = (
+    df.filter(pl.col("correct").is_not_null())
+    .with_columns(
+        (pl.col("solving_id").rank("ordinal").over("user_id") // 10 * 10)
+        .cast(pl.Int32)
+        .alias("rank_bin")
+    )
+    .group_by("rank_bin")
+    .agg(
+        pl.col("correct").mean().alias("acc"),
+        pl.len().alias("n"),
+    )
+    .sort("rank_bin")
+    .filter(pl.col("n") >= 50)  # 十分なサンプルサイズの bin のみ
+)
+
+rb = rank_acc["rank_bin"].to_numpy()
+ra = rank_acc["acc"].to_numpy()
+rn = rank_acc["n"].to_numpy()
+
+fig, ax = plt.subplots(figsize=(10, 5))
+
+# Scatter with size = sample count
+ax.scatter(rb, ra, s=np.clip(rn / 20, 5, 80), color=BLUE, alpha=0.4, edgecolors="none")
+
+# Moving average
+window = 5
+if len(ra) > window:
+    ma = np.convolve(ra, np.ones(window) / window, mode="valid")
+    ax.plot(rb[window // 2: window // 2 + len(ma)], ma,
+            color=ORANGE, lw=2.5, label=f"移動平均 (w={window})")
+
+ax.set_xlabel("ユーザー内の解答順位 (10問単位ビン)")
+ax.set_ylabel("正答率")
+ax.yaxis.set_major_formatter(ticker.PercentFormatter(1.0))
+ax.set_title("学習曲線: 解答順序と正答率の推移", fontsize=13, fontweight="bold")
+ax.legend(fontsize=10)
+ax.set_ylim(0, 1)
+fig.tight_layout()
+plt.show()
+```
+
+序盤 (0-50問目) の正答率は **50% 前後**と低いが、100問を超えるあたりから **65-70%** に上昇し、その後は安定する。この上昇は2つの要因が混在している:
+
+1. **アダプティブ出題**: Santa アプリが学習者レベルに合った問題を提示するようになる
+2. **真の学習効果**: 繰り返し練習による知識獲得
+
+KT モデルはこの両方を分離し、「学習者の潜在的な知識状態」を推定することが目標となる。
+
+## 7. 追加分析 — アクティブ日数とセッション行動
+
+```{python}
+#| label: fig-active-days
+#| fig-cap: "図10: ユーザー別アクティブ日数の分布"
+user_days = (
+    df.with_columns(
+        (pl.col("timestamp") // (86400 * 1000)).alias("day")
+    )
+    .group_by("user_id")
+    .agg(pl.col("day").n_unique().alias("active_days"))
+)
+ad = user_days["active_days"].to_numpy()
+
+fig, ax = plt.subplots(figsize=(9, 4.5))
+ax.hist(ad, bins=np.arange(0.5, min(ad.max(), 50) + 1.5, 1),
+        color=BLUE, edgecolor="white", linewidth=0.4)
+ax.set_xlabel("アクティブ日数")
+ax.set_ylabel("ユーザー数")
+ax.set_title("ユーザー別アクティブ日数の分布", fontsize=13, fontweight="bold")
+ax.annotate(f"中央値 = {int(np.median(ad))}日\n平均 = {np.mean(ad):.1f}日",
+            xy=(0.7, 0.8), xycoords="axes fraction", fontsize=10,
+            bbox=dict(boxstyle="round,pad=0.3", fc="lightyellow", ec="gray"))
+fig.tight_layout()
+plt.show()
+```
+
+アクティブ日数の中央値はわずか **1 日** — 大半のユーザーは1日だけ試して離脱している。平均 4.2 日との乖離は、少数のヘビーユーザーによる引き上げである。これはセクション 3 のエンゲージメント分析と整合する。
+
+## 8. まとめ — EDA から導く前処理方針
+
+### 発見事項の総括
+
+```{python}
+#| label: fig-summary
+#| fig-cap: "図11: EDA サマリーダッシュボード"
+fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+
+# (a) Engagement: log hist of seq_lens
+ax = axes[0, 0]
+ax.hist(n_arr, bins=np.logspace(0, np.log10(n_arr.max()), 40),
+        color=BLUE, edgecolor="white", linewidth=0.3)
+ax.set_xscale("log")
+ax.set_xlabel("系列長")
+ax.set_ylabel("ユーザー数")
+ax.set_title("(a) エンゲージメント: 系列長", fontweight="bold")
+ax.axvline(11, color="tomato", ls="--", lw=1.2, label="中央値 = 11")
+ax.legend(fontsize=8)
+
+# (b) Part accuracy
+ax = axes[0, 1]
+part_colors = plt.cm.Set2(np.linspace(0, 1, 7))
+ax.barh(labels_p[::-1], accs_p[::-1], color=part_colors[::-1], height=0.6)
+ax.set_xlim(0.4, 0.85)
+ax.xaxis.set_major_formatter(ticker.PercentFormatter(1.0))
+ax.set_title("(b) Part 別正答率", fontweight="bold")
+
+# (c) Elapsed time
+ax = axes[1, 0]
+e_all = elapsed_sec.filter(pl.col("elapsed_sec") <= 120)["elapsed_sec"].to_numpy()
+ax.hist(e_all, bins=60, color=GREEN, edgecolor="white", linewidth=0.3, density=True)
+ax.axvline(22, color="tomato", ls="--", lw=1.2, label="中央値 ≈ 22秒")
+ax.set_xlabel("解答時間 (秒)")
+ax.set_title("(c) 解答時間の分布", fontweight="bold")
+ax.legend(fontsize=8)
+
+# (d) Learning curve
+ax = axes[1, 1]
+ax.scatter(rb, ra, s=np.clip(rn / 20, 5, 60), color=BLUE, alpha=0.3, edgecolors="none")
+if len(ra) > window:
+    ax.plot(rb[window // 2: window // 2 + len(ma)], ma,
+            color=ORANGE, lw=2, label="移動平均")
+ax.set_xlabel("解答順位")
+ax.set_ylabel("正答率")
+ax.yaxis.set_major_formatter(ticker.PercentFormatter(1.0))
+ax.set_title("(d) 学習曲線", fontweight="bold")
+ax.legend(fontsize=8)
+
+fig.suptitle("EdNet-KT1 EDA サマリー", fontsize=15, fontweight="bold", y=1.01)
+fig.tight_layout()
+plt.show()
+```
+
+### KT モデル向け前処理ポリシー
+
+| # | 方針 | 根拠 |
+|---|------|------|
+| 1 | **系列長 ≥ 10 のユーザーのみ使用** | Casual ユーザー (≤10問) は学習系列として短すぎ、KT モデルの学習・評価に不適切 |
+| 2 | **elapsed_time: 1秒未満 → 除外, 5分超 → 300秒にクリッピング** | 外れ値がノイズになるため。全体の 0.6% に影響 |
+| 3 | **correct 欠損行 (108件) → 除外** | 全体の 0.02% で無視可能 |
+| 4 | **concept = `tags` (multi-skill)** | 188 タグ、1問平均 2.4 タグ。question_id のみだとスパースすぎる |
+| 5 | **train/valid/test = ユーザー単位** で分割 (7:1.5:1.5) | 系列単位分割は情報リークのリスクがある |
+| 6 | **系列長キャップ = 2,000** | 上位 1% をトリミングし、GPU メモリの効率化を図る |
+
+::: {.callout-tip}
+## Next Step
+次のノートブック `02-baseline.qmd` では、ここで定めたポリシーに基づき前処理を実行し、IRT / BKT ベースラインの正答率予測精度を計測する。
+:::

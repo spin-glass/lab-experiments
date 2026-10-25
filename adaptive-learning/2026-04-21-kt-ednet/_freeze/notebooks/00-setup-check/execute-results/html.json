@@ -1,0 +1,16 @@
+{
+  "hash": "7296a055376e14a9b5f55f2d2f6642e7",
+  "result": {
+    "engine": "jupyter",
+    "markdown": "---\ntitle: \"Environment Setup Check\"\nformat: html\njupyter: python3\n---\n\n## ライブラリのインポートと版数確認\n\n::: {#963ff2ae .cell execution_count=1}\n``` {.python .cell-code}\nimport sys\nimport polars as pl\nimport pandas as pd\nimport numpy as np\nimport torch\n\nprint(f\"Python: {sys.version.split()[0]}\")\nprint(f\"polars: {pl.__version__}\")\nprint(f\"pandas: {pd.__version__}\")\nprint(f\"numpy:  {np.__version__}\")\nprint(f\"torch:  {torch.__version__}\")\nprint(f\"CUDA:   {torch.cuda.is_available()}\")\nprint(f\"MPS:    {torch.backends.mps.is_available()}\")\n```\n\n::: {.cell-output .cell-output-stdout}\n```\nPython: 3.11.14\npolars: 1.40.0\npandas: 3.0.2\nnumpy:  2.4.4\ntorch:  2.11.0\nCUDA:   False\nMPS:    True\n```\n:::\n:::\n\n\n## DataFrame表示の確認 (Data Explorerで開けるか)\n\n::: {#349e6ae5 .cell execution_count=2}\n``` {.python .cell-code}\ndf = pl.DataFrame({\n    \"user_id\": [1, 2, 3, 4, 5],\n    \"question_id\": [101, 102, 101, 103, 102],\n    \"correct\": [1, 0, 1, 1, 0],\n    \"elapsed_ms\": [1200, 3400, 900, 5600, 2100],\n})\ndf\n```\n\n::: {.cell-output .cell-output-display execution_count=2}\n```{=html}\n<div><style>\n.dataframe > thead > tr,\n.dataframe > tbody > tr {\n  text-align: right;\n  white-space: pre-wrap;\n}\n</style>\n<small>shape: (5, 4)</small><table border=\"1\" class=\"dataframe\"><thead><tr><th>user_id</th><th>question_id</th><th>correct</th><th>elapsed_ms</th></tr><tr><td>i64</td><td>i64</td><td>i64</td><td>i64</td></tr></thead><tbody><tr><td>1</td><td>101</td><td>1</td><td>1200</td></tr><tr><td>2</td><td>102</td><td>0</td><td>3400</td></tr><tr><td>3</td><td>101</td><td>1</td><td>900</td></tr><tr><td>4</td><td>103</td><td>1</td><td>5600</td></tr><tr><td>5</td><td>102</td><td>0</td><td>2100</td></tr></tbody></table></div>\n```\n:::\n:::\n\n\n",
+    "supporting": [
+      "00-setup-check_files"
+    ],
+    "filters": [],
+    "includes": {
+      "include-in-header": [
+        "<script src=\"https://cdn.jsdelivr.net/npm/requirejs@2.3.6/require.min.js\" integrity=\"sha384-c9c+LnTbwQ3aujuU7ULEPVvgLs+Fn6fJUvIGTsuu1ZcCf11fiEubah0ttpca4ntM sha384-6V1/AdqZRWk1KAlWbKBlGhN7VG4iE/yAZcO6NZPMF8od0vukrvr0tg4qY6NSrItx\" crossorigin=\"anonymous\"></script>\n<script src=\"https://cdn.jsdelivr.net/npm/jquery@3.5.1/dist/jquery.min.js\" integrity=\"sha384-ZvpUoO/+PpLXR1lu4jmpXWu80pZlYUAfxl5NsBMWOEPSjUn/6Z/hRTt8+pR6L4N2\" crossorigin=\"anonymous\" data-relocate-top=\"true\"></script>\n<script type=\"application/javascript\">define('jquery', [],function() {return window.jQuery;})</script>\n"
+      ]
+    }
+  }
+}
