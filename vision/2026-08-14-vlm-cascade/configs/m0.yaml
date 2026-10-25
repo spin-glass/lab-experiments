@@ -1,0 +1,53 @@
+# M0 セットアップ（design.md §2 データ・§6 M0、g0_nonfood_plan.md §3.1 Yelp 分割）。
+# 画像・生データ・photo_id 行はリポジトリに置かない。ここには seed・比率・最小 n・規約の記録欄のみ。
+taxonomy_version: "0.1.0"
+rulebook_version: "未導入" # rulebook は M2 で導入。フッタ表記は「未導入」
+
+yelp:
+  # Yelp Open Dataset photos の手動配置先（省略時は paths.YELP = data/yelp）。
+  # 期待レイアウト: <root>/photos.json（JSON Lines）、<root>/photos/<photo_id>.jpg、
+  # <root>/Dataset_User_Agreement.pdf、<root>/DOWNLOAD.txt（下記 terms の記録。ユーザが作成）
+  root: null
+  photos_json: photos.json
+  photos_dir: photos
+  download_record: DOWNLOAD.txt
+  image_ext: .jpg
+  # DOWNLOAD.txt に書く項目（key: value の行）。verify-yelp が読み取り、reports のフッタへ転記する
+  terms:
+    required_fields: [terms_version, downloaded_at]
+    optional_fields: [archive_sha256, archive_name, source_url, notes]
+  # 画像サイズ分布の標本（A2 §11.1: 長辺サイズ・JPEG 品質）。全数は読まない
+  sample_image_stats:
+    n: 2000
+    seed: 20260907
+
+splits:
+  seed: "yelp-splits-v1"
+  # 成分（business_id ∪ dup 群）単位の基礎比率。work は残余であり、最小 n を満たすための
+  # 補填は work からのみ決定的に行う（cascade.data.yelp.build_splits）
+  ratios:
+    tune_fit: 0.20
+    tune_cal: 0.10
+    work: 0.35
+    eval: 0.35
+  # 役割別・クラス別の最小 n（g0_nonfood_plan.md §3.1 の表 + design.md §2 の均等スライス）
+  minimums:
+    tune_fit: { food: 2000, drink: 500, menu: 500, inside: 500, outside: 500 }
+    tune_cal: { food: 3000 }
+    eval: { food: 3000, drink: 400, menu: 400, inside: 400, outside: 400 }
+  # eval の均等スライス（design.md §2「クラス別 400 目安」）。eval 内からクラス別に決定的に抽出する。
+  # natural スライス = eval 全体（Yelp のクラス分布のまま。G0 の food ≥ 3,000 はこちらで満たす）
+  eval_balanced_per_class: 400
+  classes: [food, drink, menu, inside, outside]
+  # ラベル欠損行の扱い: 分割には含める（成分は跨がない）が最小 n には数えない
+  include_unlabeled: true
+  # eval_sets の ID 接頭辞。ハッシュは sha256(ソート済み photo_id を "\n" 連結)
+  eval_set_prefix: yelp-v1
+
+dedup:
+  # --with-dedup 時のみ。Yelp 規模（約 20 万枚）では pHash のみ（sha256・埋め込みは使わない）
+  phash_max: 8
+  batch_size: 5000
+  shard_dir: _phash # <root>/_phash/shard_XXXXX.parquet（再開可能）
+
+tracking: [wandb, vertex]

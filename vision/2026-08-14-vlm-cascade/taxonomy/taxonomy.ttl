@@ -1,0 +1,93 @@
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix tx: <urn:lab-vlm-cascade:taxonomy:> .
+
+<urn:lab-vlm-cascade:taxonomy:yelp-restaurant-photos:drink> a skos:Concept ;
+    skos:altLabel "a photo of a cocktail in a glass"@en,
+        "a photo of a cup of coffee"@en,
+        "a photo of a drink served at a restaurant"@en,
+        "a photo of beverages on a table"@en ;
+    skos:broader <urn:lab-vlm-cascade:taxonomy:yelp-restaurant-photos:non_food_branch> ;
+    skos:definition "グラス・カップ・ボトルに入った飲料が主被写体である画像。アルコール飲料・コーヒー・ジュース・スムージーを含む。"@ja ;
+    skos:inScheme tx:yelp-restaurant-photos ;
+    skos:notation "drink" ;
+    skos:prefLabel "飲み物"@ja ;
+    skos:scopeNote "料理が同格で写る場合は rulebook.md の優先規則に従う。"@ja .
+
+<urn:lab-vlm-cascade:taxonomy:yelp-restaurant-photos:food> a skos:Concept ;
+    skos:altLabel "a close-up photo of a meal"@en,
+        "a photo of a dish on a table"@en,
+        "a photo of a plate of food"@en,
+        "a photo of food served at a restaurant"@en ;
+    skos:broader <urn:lab-vlm-cascade:taxonomy:yelp-restaurant-photos:food_branch> ;
+    skos:definition "皿・丼・器に盛られた料理、または食材そのものが主被写体である画像。デザート・パン・スナックを含む。"@ja ;
+    skos:inScheme tx:yelp-restaurant-photos ;
+    skos:notation "food" ;
+    skos:prefLabel "料理"@ja ;
+    skos:scopeNote "料理と飲み物が同格で写る場合の優先順位、料理写真入りメニューページ・店頭の料理ディスプレイの扱いは rulebook.md の優先規則で決める（現行案は food 優先。D13）。"@ja .
+
+<urn:lab-vlm-cascade:taxonomy:yelp-restaurant-photos:inside> a skos:Concept ;
+    skos:altLabel "a photo of a bar counter inside a restaurant"@en,
+        "a photo of a restaurant dining room"@en,
+        "a photo of tables and chairs inside a restaurant"@en,
+        "a photo of the interior of a restaurant"@en ;
+    skos:broader <urn:lab-vlm-cascade:taxonomy:yelp-restaurant-photos:non_food_branch> ;
+    skos:definition "店舗の内部空間（客席・カウンター・厨房・内装）を主被写体とする画像。店内で撮られていても、料理・飲み物・メニューが主被写体ならそれぞれのクラスに属する。"@ja ;
+    skos:inScheme tx:yelp-restaurant-photos ;
+    skos:notation "inside" ;
+    skos:prefLabel "店内"@ja ;
+    skos:scopeNote "料理の載ったテーブルを含む店内カット・食事中の人物は誤爆吸収クラスの候補（M1 で第3階層として追加。D13）。"@ja .
+
+<urn:lab-vlm-cascade:taxonomy:yelp-restaurant-photos:menu> a skos:Concept ;
+    skos:altLabel "a photo of a menu board on the wall"@en,
+        "a photo of a printed menu"@en,
+        "a photo of a restaurant menu"@en ;
+    skos:broader <urn:lab-vlm-cascade:taxonomy:yelp-restaurant-photos:non_food_branch> ;
+    skos:definition "印刷されたメニュー、黒板・掲示のメニューボード、価格表など、提供品目を列挙した文書が主被写体である画像。"@ja ;
+    skos:inScheme tx:yelp-restaurant-photos ;
+    skos:notation "menu" ;
+    skos:prefLabel "メニュー"@ja ;
+    skos:scopeNote "料理写真が大きく載ったメニューページも menu（属性 food_visible は別フィールドで持つ。taxonomy.md §4）。"@ja .
+
+<urn:lab-vlm-cascade:taxonomy:yelp-restaurant-photos:outside> a skos:Concept ;
+    skos:altLabel "a photo of a restaurant sign seen from the street"@en,
+        "a photo of a restaurant storefront"@en,
+        "a photo of an outdoor patio of a restaurant"@en,
+        "a photo of the exterior of a restaurant building"@en ;
+    skos:broader <urn:lab-vlm-cascade:taxonomy:yelp-restaurant-photos:non_food_branch> ;
+    skos:definition "店舗の外観（ファサード・看板・入口・テラス席・周辺の街路）を主被写体とする画像。"@ja ;
+    skos:inScheme tx:yelp-restaurant-photos ;
+    skos:notation "outside" ;
+    skos:prefLabel "店外"@ja ;
+    skos:scopeNote "店頭の料理ディスプレイ・ショーケースは誤爆吸収クラスの候補（M1 で第3階層として追加。D13）。"@ja .
+
+<urn:lab-vlm-cascade:taxonomy:yelp-restaurant-photos:food_branch> a skos:Concept ;
+    skos:definition "主被写体が料理である画像のブランチ。二値フラグ（food / not-food）の吸収先であり、ゴールドには記録せず第2階層の親として導出する。"@ja ;
+    skos:inScheme tx:yelp-restaurant-photos ;
+    skos:narrower <urn:lab-vlm-cascade:taxonomy:yelp-restaurant-photos:food> ;
+    skos:notation "food_branch" ;
+    skos:prefLabel "料理ブランチ"@ja ;
+    skos:scopeNote "第1階層の確信度は Stage1 の branch_margin = S_food − S_non として Stage2 に渡す（design.md §1）。"@ja ;
+    skos:topConceptOf tx:yelp-restaurant-photos .
+
+<urn:lab-vlm-cascade:taxonomy:yelp-restaurant-photos:non_food_branch> a skos:Concept ;
+    skos:definition "主被写体が料理ではない画像のブランチ。「料理でない」という否定を、配下の肯定クラス（drink / menu / inside / outside）の列挙で表現する。"@ja ;
+    skos:inScheme tx:yelp-restaurant-photos ;
+    skos:narrower <urn:lab-vlm-cascade:taxonomy:yelp-restaurant-photos:drink>,
+        <urn:lab-vlm-cascade:taxonomy:yelp-restaurant-photos:inside>,
+        <urn:lab-vlm-cascade:taxonomy:yelp-restaurant-photos:menu>,
+        <urn:lab-vlm-cascade:taxonomy:yelp-restaurant-photos:outside> ;
+    skos:notation "non_food_branch" ;
+    skos:prefLabel "非料理ブランチ"@ja ;
+    skos:scopeNote "否定プロンプトは使わない（CLIP 系エンコーダは否定を扱えない。taxonomy.md §3）。"@ja ;
+    skos:topConceptOf tx:yelp-restaurant-photos .
+
+tx:yelp-restaurant-photos a skos:ConceptScheme ;
+    dcterms:hasVersion "0.1.0" ;
+    dcterms:identifier "yelp-restaurant-photos" ;
+    skos:changeNote "0.1.0 (2026-09-07): 初版。第1階層 2 ブランチ・第2階層 5 運用クラス。第3階層なし。プロンプトは素朴なフラット版（M1 で調整）"@ja ;
+    skos:definition "Yelp Open Dataset のレストラン写真を第1階層（food / non-food ブランチ）と第2階層（運用5クラス）で分類する is-a 木。第3階層（プロンプト用サブクラス）は M1 で追加する。"@ja ;
+    skos:hasTopConcept <urn:lab-vlm-cascade:taxonomy:yelp-restaurant-photos:food_branch>,
+        <urn:lab-vlm-cascade:taxonomy:yelp-restaurant-photos:non_food_branch> ;
+    skos:prefLabel "レストラン写真の2階層タクソノミー"@ja .
+

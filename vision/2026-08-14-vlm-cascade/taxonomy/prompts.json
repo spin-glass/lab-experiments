@@ -1,0 +1,118 @@
+{
+  "scheme_version": "0.1.0",
+  "classes": {
+    "food": {
+      "prefLabel": "料理",
+      "prompts": [
+        {
+          "text": "a photo of food served at a restaurant",
+          "source": "food"
+        },
+        {
+          "text": "a photo of a dish on a table",
+          "source": "food"
+        },
+        {
+          "text": "a photo of a plate of food",
+          "source": "food"
+        },
+        {
+          "text": "a close-up photo of a meal",
+          "source": "food"
+        }
+      ],
+      "branch": "food_branch"
+    },
+    "drink": {
+      "prefLabel": "飲み物",
+      "prompts": [
+        {
+          "text": "a photo of a drink served at a restaurant",
+          "source": "drink"
+        },
+        {
+          "text": "a photo of beverages on a table",
+          "source": "drink"
+        },
+        {
+          "text": "a photo of a cocktail in a glass",
+          "source": "drink"
+        },
+        {
+          "text": "a photo of a cup of coffee",
+          "source": "drink"
+        }
+      ],
+      "branch": "non_food_branch"
+    },
+    "menu": {
+      "prefLabel": "メニュー",
+      "prompts": [
+        {
+          "text": "a photo of a restaurant menu",
+          "source": "menu"
+        },
+        {
+          "text": "a photo of a printed menu",
+          "source": "menu"
+        },
+        {
+          "text": "a photo of a menu board on the wall",
+          "source": "menu"
+        }
+      ],
+      "branch": "non_food_branch"
+    },
+    "inside": {
+      "prefLabel": "店内",
+      "prompts": [
+        {
+          "text": "a photo of the interior of a restaurant",
+          "source": "inside"
+        },
+        {
+          "text": "a photo of a restaurant dining room",
+          "source": "inside"
+        },
+        {
+          "text": "a photo of tables and chairs inside a restaurant",
+          "source": "inside"
+        },
+        {
+          "text": "a photo of a bar counter inside a restaurant",
+          "source": "inside"
+        }
+      ],
+      "branch": "non_food_branch"
+    },
+    "outside": {
+      "prefLabel": "店外",
+      "prompts": [
+        {
+          "text": "a photo of a restaurant storefront",
+          "source": "outside"
+        },
+        {
+          "text": "a photo of the exterior of a restaurant building",
+          "source": "outside"
+        },
+        {
+          "text": "a photo of a restaurant sign seen from the street",
+          "source": "outside"
+        },
+        {
+          "text": "a photo of an outdoor patio of a restaurant",
+          "source": "outside"
+        }
+      ],
+      "branch": "non_food_branch"
+    }
+  },
+  "class_order": [
+    "food",
+    "drink",
+    "menu",
+    "inside",
+    "outside"
+  ]
+}

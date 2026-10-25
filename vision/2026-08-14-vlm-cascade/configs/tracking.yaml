@@ -1,0 +1,12 @@
+# トラッキング設定（design.md §3 runs 正本パターン）
+# 正本はローカル parquet（marts/runs）。tracking に列挙したバックエンドへ二重送出する。
+# 認証は環境変数のみ: WANDB_API_KEY（未設定なら wandb を skip）、GOOGLE_CLOUD_PROJECT + ADC（未設定なら vertex を skip）。
+tracking: [wandb, vertex]
+wandb:
+  project: lab-vlm-cascade
+  entity: null
+  max_table_rows: 1000 # 小テーブルのみ。画像・生データは送らない
+vertex:
+  location: us-central1
+  experiment: lab-vlm-cascade
+  # Vertex AI TensorBoard は有効化しない（experiment_tensorboard=False を常に渡す）

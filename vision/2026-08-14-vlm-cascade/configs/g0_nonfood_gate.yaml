@@ -1,0 +1,118 @@
+# G0 非料理画像の距離信号による識別（docs/g0_nonfood_plan.md §4〜§8、design.md §6 G0・§8 D14）。
+# 実行: uv run python -m cascade.g0_nonfood_gate --config configs/g0_nonfood_gate.yaml --stage work --encoder e1
+#       eval は最後の 1 回のみ（--stage eval --confirm-eval）。
+# 数値は事前登録 §12 の「判定規則の最終数値」と一致させる。凍結後の変更は §14 逸脱記録なしに行わない。
+
+encoders_config: configs/encoders.yaml # E1 / E2 の hf_id・revision はこちらでピン留め
+taxonomy_version: "0.1.0"
+rulebook_version: "未導入" # rulebook は G0 では未導入（design.md §6 M0 注記）
+prompts_json: taxonomy/prompts.json # 生成物。class_order = [food, drink, menu, inside, outside]
+class_order: [food, drink, menu, inside, outside]
+food_label: food
+seed: 0
+
+# 記録（design.md §3 runs 正本パターン）。正本は marts/runs.parquet、fan-out はどれが不通でも完走する
+tracking: [wandb, vertex]
+wandb:
+  project: lab-vlm-cascade
+  entity: null
+  max_table_rows: 1000
+vertex:
+  location: us-central1
+  experiment: lab-vlm-cascade
+
+# Yelp 規約の版と DL 日（§15。B-b で記入し reports フッタに記録する）
+yelp_terms:
+  version: null
+  download_date: null
+
+# 入力（すべて data/ 配下。git 管理外）
+data:
+  yelp_dataset_id: yelp # EmbeddingCache の dataset_id
+  ext_dataset_ids: [open_images, commons, coco, cord] # 外部源の dataset_id（source 名と一致）
+  labels_source: yelp # core/labels の label_source
+  yelp_splits_path: marts/splits.parquet # photo_id, role ∈ {tune_fit, tune_cal, work, eval}, component_id（m0_setup build-splits が生成）
+  review_path: review/food_loss_review.jsonl # 棄却された名目 food 全数＋通過側無作為の目視（photo_id, content）
+  eval_set_id: null # A3 凍結時に eval_sets の eval_set_id を記入
+
+# 検出器（§5）。主構成 8 = E1 × {MSP, kNN, Mahalanobis++, C3} × {P1, P2}
+detectors:
+  main:
+    encoder: e1
+    methods: [msp, knn, mahalanobis_pp, c3_binary]
+    modes: [P1, P2]
+  # 副次構成（§5.2）。記述のみで採否に使わない。work_only は eval では走らせない
+  secondary:
+    - { id: mahalanobis, method: mahalanobis, modes: [P1, P2] }
+    - { id: c1_oe, method: c1_oe, modes: [P1, P2] }
+    - { id: c2_sixway, method: c2_sixway, modes: [P1, P2] }
+    - { id: msp_tau0.01, method: msp, modes: [P1, P2], params: { tau: 0.01 } }
+    - { id: knn_k10, method: knn, modes: [P1, P2], params: { k: 10 }, work_only: true }
+    - { id: knn_k200, method: knn, modes: [P1, P2], params: { k: 200 }, work_only: true }
+  params:
+    msp: { tau: 1.0 }
+    knn: { k: 50 }
+    mahalanobis_pp: { ridge: 1.0e-6 }
+    mahalanobis: { ridge: 1.0e-6 }
+    c3_binary: { C: 1.0 } # class_weight は balanced 固定（scorers.binary_head）
+    c1_oe: { lam: 0.5 }
+    c2_sixway: {}
+  # C 系（外部負例で学習する方式）。LOTO / LOSO と (e) の対象
+  c_series: [c3_binary, c1_oe, c2_sixway]
+
+# 動作点（§7.1）。tune_cal の「正しく food」のスコア昇順 1% 位置。副 0.5% / 2%
+operating_point:
+  loss_levels: [0.01, 0.005, 0.02]
+  primary_loss: 0.01
+
+# 評価集合の定義（§2.2、§3）
+sets:
+  layer_a_types: # 層 A の主 5 型（out_of_scope）
+    - doll_character_statue
+    - amusement_tourist
+    - signage_decor_goods
+    - person_animal
+    - vehicle_street
+  near_food_type: near_food_nonfood # 別集計（§3.2）
+  aux_far_type: texture_document_screen # 補助 far（§3.5）
+  contrast_type: food_contrast # ソース対照正例（§3.4）
+  loto_exclude_types: [food_contrast, texture_document_screen, other] # LOTO の fold から除く型（§5.4）
+  loso_sources: [open_images, commons, coco] # LOSO の fold 軸
+  layer_b_truths: [inside, outside, menu] # 層 B の operational_truth（§2.1）
+
+# D14 判定規則（§8、§12）
+decision:
+  primary_config: e1/knn/P1 # α = 0.05。残り 7 構成は Holm（m = 7）
+  alpha: 0.05
+  holm_m: 7
+  h0_p: 0.25 # H0: p ≤ 0.25 の片側正確二項検定
+  min_n_before_pooled: 40 # 成立条件（§8.1）
+  min_n_before_type: 10
+  thresholds:
+    a_reduction_point: 0.50 # (a) 削減率の点推定
+    b_confirmed_upper: 0.02 # (b) 確認済み損失の片側 95% 上限
+    b_nominal_upper: 0.025 # (b) 名目損失の片側 95% 上限
+    c_type_reduction_point: 0.20 # (c) 評価可能な全型の削減率点推定
+    d_other_frr_upper: 0.03 # (d) 他 4 クラス FRR の片側 95% 上限（P2）
+    d_layer_b_pass_lower: 0.90 # (d) 層 B 通過率の片側 95% 下限（P2）
+    e_heldout_lower: 0.25 # (e) LOTO・LOSO の held-out 合算 片側 CP 下限（C 系）
+    f_source_ratio: 3.0 # (f) ソース検出フラグ: 対照正例の棄却率が損失の 3 倍以上
+    f_source_diff: 0.05 # かつ 5pt 以上
+    reject_reduction_upper: 0.50 # 不採用: 削減率の片側 95% 上限 < 50%
+    reject_confirmed_point: 0.04 # 不採用: 確認済み損失の点推定 > 4%
+    reject_nominal_point: 0.05 # 不採用: 名目損失の点推定 > 5%
+    p1_sufficiency_factor: 0.9 # §8.4: P1 下限 ≥ P2 点推定 × 0.9
+
+# 記述分析（§6）。ビン幅は凍結時（§12）に固定する
+descriptive:
+  hist_methods: [knn, mahalanobis_pp]
+  n_bins: 40
+  kl_eps: 1.0e-6
+
+# 感度分析（§7.4）: 店舗単位ブートストラップ（判定には使わない）
+bootstrap:
+  B: 2000
+  cluster_col: business_id
+
+# 分析 SQL（analysis/d14_*.sql）の論理名→物理名。空なら同名
+tables: {}
