@@ -134,6 +134,19 @@ design.md および reports/ で数値・設計主張をする際の引用元。
 - **[MahaPP25]** Mueller & Hein. "Mahalanobis++: Improving OOD Detection via Feature Normalization." ICML 2025 (PMLR 267). https://arxiv.org/abs/2505.18032
   — 主張: 特徴ノルムのばらつきがガウス仮定を壊す。L2 正規化後にクラス別平均＋共有共分散を推定すると 44 モデルで一貫して改善。本リポの Mahalanobis++（リッジ 1e-6）。素の Mahalanobis はアブレーション。
 
+### ロジット系スコアと合成型（analysis/d14_farood_score_memo.md の出典。G0 主構成には含まれない）
+
+- **[MLS22]** Hendrycks, Basart, Mazeika et al. "Scaling Out-of-Distribution Detection for Real-World Settings." ICML 2022. https://arxiv.org/abs/1911.11132
+  — 主張: 多クラス・大規模設定では最大ロジット（MaxLogit）が MSP を上回る。softmax 正規化が捨てるロジットの絶対量（共通成分）を保持する基準線。
+- **[ViM22]** Wang, Li, Feng & Zhang. "ViM: Out-Of-Distribution with Virtual-logit Matching." CVPR 2022. https://arxiv.org/abs/2203.10807
+  — 主張: 特徴空間でしか見えない OOD とロジット空間でしか見えない OOD が併存する。特徴主部分空間からの残差ノルムを仮想ロジットとしてロジットに連結（= Energy ＋ 残差）する合成型の代表。距離信号を補完信号として足す構成の型。
+- **[DML23]** Zhang & Xiang. "Decoupling MaxLogit for Out-of-Distribution Detection." CVPR 2023. https://openaccess.thecvf.com/content/CVPR2023/html/Zhang_Decoupling_MaxLogit_for_Out-of-Distribution_Detection_CVPR_2023_paper.html
+  — 主張: MaxLogit は cos 類似度×特徴ノルムに分解でき、両者の重みを分離調整すると改善する。
+- **[Fort21]** Fort, Ren & Lakshminarayanan. "Exploring the Limits of Out-of-Distribution Detection." NeurIPS 2021. https://arxiv.org/abs/2106.03004
+  — 主張: 事前学習 transformer（ViT）特徴上では Mahalanobis 系の距離検出が強い。凍結 CLIP 特徴で距離が負ける場合は実装差（正規化等）を疑う根拠。
+- **[RMD21]** Ren, Fort, Liu et al. "A Simple Fix to Mahalanobis Distance for Improving Near-OOD Detection." arXiv:2106.09022. https://arxiv.org/abs/2106.09022
+  — 主張: クラス条件付き Mahalanobis から全体分布への距離を引く相対 Mahalanobis（RMD）。事前学習特徴と相性が良い。
+
 ### 評価プロトコル
 
 - **[OpenOOD23]** Zhang et al. "OpenOOD v1.5: Enhanced Benchmark for Out-of-Distribution Detection." arXiv:2306.09301（DMLR 採録）. https://arxiv.org/abs/2306.09301
