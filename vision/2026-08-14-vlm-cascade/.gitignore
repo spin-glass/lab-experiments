@@ -1,0 +1,27 @@
+# Yelp Open Dataset — 画像・生データは絶対にコミットしない（CLAUDE.md 絶対制約）
+data/
+
+# 認証情報
+.env
+*.pem
+*credentials*.json
+
+# Python / uv
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# トラッカーのローカルキャッシュ
+wandb/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
