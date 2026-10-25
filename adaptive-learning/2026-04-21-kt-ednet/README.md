@@ -1,8 +1,41 @@
 # Adaptive Learning with Knowledge Tracing
 
+EdNet の実データ（78万ユーザー・1.3億インタラクション）を使い、**Knowledge Tracing → Item Selection** のパイプラインを設計・実装する実験。
+
+## 問い
+
 > テスト対策アプリで、次に何を出せば一番効果的か？
 
-EdNet の実データ（78万ユーザー・1.3億インタラクション）を使い、**Knowledge Tracing → Item Selection** のパイプラインを設計・実装するプロジェクト。
+その第一段として、**古典モデル（IRT 2PL・BKT）で推定した学習者の知識状態は、出題戦略の入力として十分か** を確かめる（[02](notebooks/02-irt-bkt.qmd)）。
+
+## 結論
+
+- 同じ学習者の前半 70% で推定して後半 30% を予測すると（within-user）、AUC-ROC は IRT 2PL 0.571、BKT 0.618。スキル別の習熟を時系列で追う BKT の方が高い
+- 未知の学習者（user-level split、cold-start）では IRT 0.556、BKT 0.566 で、ほぼコンセプトの難易度だけで当てている状態。古典モデルは新規ユーザーの個人化ができない
+- それでも IRT の難易度・識別力と BKT の learn rate は「問題側の情報」として新規ユーザーの出題に使える。深層 KT（03）と出題戦略（04）はまだ着手していない
+
+数値は 5,000 ユーザーのサンプル（約55万行）での1回の実行。詳細と図はノートブック [02](notebooks/02-irt-bkt.qmd) の 5〜6 節。
+
+## 再現手順
+
+lab-experiments のルートで依存を入れ、この実験フォルダでデータ取得・テスト・レンダリングを行う。データ（EdNet-KT1）は `data/` に置かれ、git 管理外。
+
+```bash
+# リポジトリのルートで
+uv sync --package adaptive-learning-kt
+
+# この実験フォルダで
+cd adaptive-learning/2026-04-21-kt-ednet
+make download                                # EdNet-KT1 を data/raw/ に取得
+make test                                    # pytest
+make render FILE=notebooks/02-irt-bkt.qmd    # Quarto → HTML（_site/、git 管理外）
+```
+
+IRT の MCMC 推論に 10〜20 分かかる。2回目以降は `_freeze/` の計算済み出力を使う。
+
+## ノート
+
+lab-research-notes：未作成
 
 ## 背景
 
@@ -59,34 +92,16 @@ Computerized Adaptive Testing (CAT) の枠組みに沿って、2段階のパイ�
   次の一問
 ```
 
-## Notebooks
+## ノートブック
 
-| # | 問い | 手法 | 示す能力 |
-|---|------|------|---------|
-| [01](notebooks/01-eda.qmd) | 学習者はどう行動しているか？ | Polars, Matplotlib | ドメイン理解、データリテラシー |
-| [02](notebooks/02-irt-bkt.qmd) | 学習者の「知識」を測れるか？ | PyMC (IRT 2PL), pyBKT | ベイズ推論、古典モデルの説明可能性 |
-| [03](notebooks/03-deep-kt.qmd) | Deep Learning で精度は上がるか？ | PyTorch Lightning, MLflow | DL実装力、実験管理 |
-| [04](notebooks/04-item-selection.qmd) | 「次の一問」をどう選ぶか？ | シミュレーション | KTの出口設計、出題ポリシー比較 |
+| # | 問い | 手法 | 状態 |
+|---|------|------|------|
+| [01](notebooks/01-eda.qmd) | 学習者はどう行動しているか？ | Polars, Matplotlib | 済 |
+| [02](notebooks/02-irt-bkt.qmd) | 学習者の「知識」を測れるか？ | PyMC (IRT 2PL), pyBKT | 済 |
+| 03 | Deep Learning で精度は上がるか？ | PyTorch Lightning, MLflow | 未着手 |
+| 04 | 「次の一問」をどう選ぶか？ | シミュレーション | 未着手 |
 
-## Implementation Phases
-
-| Phase | 内容 | 状態 |
-|-------|------|------|
-| 0 | 環境構築 + EDA | Done |
-| 1 | `src/features/` + 02-irt-bkt.qmd — 前処理パイプライン + 古典モデル | Done |
-| 2 | `src/models/` + `src/training/` + 03-deep-kt.qmd — 深層KTモデル比較 | Done |
-| 3 | `src/policy/` + 04-item-selection.qmd — 出題戦略シミュレーション | WIP |
-
-## Quick Start
-
-```bash
-uv sync                                   # 依存インストール
-make download                              # EdNet-KT1 データ取得
-make test                                  # pytest
-make render FILE=notebooks/01-eda.qmd      # Quarto → HTML
-```
-
-## Project Structure
+## 構成
 
 ```
 ├── notebooks/           # Quarto (.qmd) — 分析ノートブック
@@ -95,16 +110,12 @@ make render FILE=notebooks/01-eda.qmd      # Quarto → HTML
 │   ├── features/        # 前処理パイプライン (elapsed_time クリッピング、系列長フィルタ等)
 │   ├── models/
 │   │   ├── irt.py       # IRT 2PL (PyMC)
-│   │   ├── bkt.py       # BKT wrapper (pyBKT)
-│   │   ├── dkt.py       # Deep Knowledge Tracing (LSTM)
-│   │   ├── sakt.py      # Self-Attentive KT
-│   │   └── simplekt.py  # SimpleKT
-│   ├── training/        # PyTorch Lightning modules
-│   ├── eval/            # AUC, calibration, metrics
-│   └── policy/          # Item Selection (random, difficulty matching, Thompson sampling)
+│   │   └── bkt.py       # BKT wrapper (pyBKT)
+│   └── eval/            # AUC, calibration, metrics
 ├── tests/               # pytest
-├── data/{raw,processed} # gitignore
-└── mlruns/              # MLflow (gitignore)
+├── assets/              # README の図
+├── _freeze/             # Quarto の計算済み出力
+└── data/{raw,processed} # git 管理外
 ```
 
 ## Dataset
