@@ -7,6 +7,7 @@ from cascade.io.tables import (
     duckdb_connect,
     read_table,
     run_sql,
+    table_lock,
     table_path,
     write_table,
 )
@@ -18,6 +19,7 @@ __all__ = [
     "duckdb_connect",
     "read_table",
     "run_sql",
+    "table_lock",
     "table_path",
     "write_table",
 ]

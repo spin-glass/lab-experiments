@@ -19,9 +19,10 @@ from typing import Any
 
 import polars as pl
 
+from cascade import paths
 from cascade.io import tables
 from cascade.tracking import backends as _backends
-from cascade.tracking.backends import SkipBackend
+from cascade.tracking.backends import SkipBackend, to_builtin
 
 log = logging.getLogger(__name__)
 
@@ -35,21 +36,60 @@ STAMP_KEYS = (
 )
 
 
-def get_git_sha(short: bool = False) -> str:
-    """現在の HEAD の sha。git が無い／リポジトリ外なら "unknown"。"""
-    args = ["git", "rev-parse", "--short" if short else "--verify", "HEAD"]
+def _git(args: list[str]) -> str | None:
+    """リポジトリルート（paths.REPO_ROOT）で git を実行し stdout を返す。失敗は None。"""
     try:
-        out = subprocess.run(args, capture_output=True, text=True, timeout=10, check=True)
+        out = subprocess.run(
+            ["git", *args],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=True,
+            cwd=paths.REPO_ROOT,
+        )
     except (OSError, subprocess.SubprocessError):
+        return None
+    return out.stdout
+
+
+def get_git_sha(short: bool = False) -> str:
+    """HEAD の sha（cwd に依らず paths.REPO_ROOT で解決）。追跡ファイルに未コミット変更があれば
+    ``-dirty`` を付ける。git が無い／リポジトリ外なら "unknown"。"""
+    out = _git(["rev-parse", "--short" if short else "--verify", "HEAD"])
+    sha = (out or "").strip()
+    if not sha:
         return "unknown"
-    sha = out.stdout.strip()
-    return sha or "unknown"
+    status = _git(["status", "--porcelain", "--untracked-files=no"])
+    if status is not None and status.strip():
+        sha += "-dirty"
+    return sha
 
 
 def new_run_id(now: datetime | None = None) -> str:
     """時刻＋乱数の run_id（小文字英数とハイフン。Vertex の run 名制約と両立）。"""
     now = now or datetime.now(UTC)
     return f"{now:%Y%m%dt%H%M%S}-{uuid.uuid4().hex[:8]}"
+
+
+def _validate_tracking(value: Any) -> list[str]:
+    """``config["tracking"]`` は None / str / list[str]（tuple 可）のみ。それ以外は早期に ValueError。"""
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, (list, tuple)) and all(isinstance(n, str) for n in value):
+        return list(value)
+    raise ValueError(
+        f"config['tracking'] はバックエンド名の list（例 [wandb, vertex]）か str が必要: {value!r}"
+    )
+
+
+def _json_default(v: Any) -> Any:
+    """metrics_json の直列化: numpy は数値のまま（文字列化しない）、それ以外は str。"""
+    b = to_builtin(v)
+    if b is v:
+        return str(v)
+    return b
 
 
 class RunRecorder:
@@ -59,6 +99,7 @@ class RunRecorder:
         unknown = sorted(set(stamps) - set(STAMP_KEYS))
         if unknown:
             raise ValueError(f"未知の刻印キー {unknown}（許容: {STAMP_KEYS}）")
+        _validate_tracking(config.get("tracking"))
         self.config = config
         self.run_id = run_id or new_run_id()
         self.stamps: dict[str, Any] = {k: stamps.get(k) for k in STAMP_KEYS}
@@ -82,16 +123,13 @@ class RunRecorder:
         return {
             "run_id": self.run_id,
             **{k: (None if v is None else str(v)) for k, v in self.stamps.items()},
-            "metrics_json": json.dumps(self.metrics, sort_keys=True, default=str),
+            "metrics_json": json.dumps(self.metrics, sort_keys=True, default=_json_default),
             "wandb_url": wandb_url,
             "ts": datetime.now(UTC),
         }
 
     def _backend_names(self) -> list[str]:
-        names = self.config.get("tracking") or []
-        if isinstance(names, str):
-            names = [names]
-        return [str(n) for n in names]
+        return _validate_tracking(self.config.get("tracking"))
 
     def _fan_out(self) -> tuple[dict[str, str], str | None]:
         status: dict[str, str] = {}
@@ -133,17 +171,18 @@ class RunRecorder:
         runs_path = tables.append_rows("runs", [self._runs_row(None)], "marts")
         # 2) fan-out（例外は status に落ちる）
         status, wandb_url = self._fan_out()
-        # 3) 得られた URL を正本へ反映（失敗しても run は完走）
+        # 3) 得られた URL を正本へ反映（read-modify-write はロック内。失敗しても run は完走）
         if wandb_url:
             try:
-                df = tables.read_table("runs", "marts")
-                df = df.with_columns(
-                    pl.when(pl.col("run_id") == self.run_id)
-                    .then(pl.lit(wandb_url))
-                    .otherwise(pl.col("wandb_url"))
-                    .alias("wandb_url")
-                )
-                tables.write_table("runs", df, "marts")
+                with tables.table_lock("runs", "marts"):
+                    df = tables.read_table("runs", "marts")
+                    df = df.with_columns(
+                        pl.when(pl.col("run_id") == self.run_id)
+                        .then(pl.lit(wandb_url))
+                        .otherwise(pl.col("wandb_url"))
+                        .alias("wandb_url")
+                    )
+                    tables.write_table("runs", df, "marts")
             except Exception as e:  # noqa: BLE001
                 log.warning("runs.wandb_url の更新に失敗: %s", e)
         self._finished = {

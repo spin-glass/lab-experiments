@@ -1,6 +1,10 @@
 # エンコーダのピン留め（design.md §6 G0: E1 主構成 / E2 副次）。
 # revision は HF Hub のコミットハッシュ。"latest"/"main" は cascade.config.validate_pins が拒否する。
 # 版は 2026-09-07 に HF Hub で確認。
+# local_files_only: true にすると HF Hub に一切アクセスしない（キャッシュ済み前提）。既定 false。
+#   load_encoder(spec, local_files_only=...) の引数が spec より優先する。
+# TODO(config/m0_setup 担当): taxonomy_version は taxonomy/taxonomy.yaml の scheme.version と load 時に一致検証する
+#   （現状は相互検証なし。encoders.yaml 側では値のピン留めのみ）。
 encoders:
   - name: e1
     backend: open_clip
@@ -11,6 +15,7 @@ encoders:
     image_size: 224
     dtype: float32
     device: auto
+    local_files_only: false
   - name: e2
     backend: hf_siglip
     hf_id: google/siglip2-base-patch16-224
@@ -18,4 +23,5 @@ encoders:
     image_size: 224
     dtype: float32
     device: auto
+    local_files_only: false
 taxonomy_version: "0.1.0"

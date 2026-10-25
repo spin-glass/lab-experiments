@@ -9,6 +9,10 @@
     {"food": ["a photo of food", ...], ...}
 
   ``class_order`` キーがあればそれを採用し、無ければ既定順（food, drink, menu, inside, outside）→ 残りは出現順。
+  ``class_order`` と prompts のクラス集合は一致しなければならない（欠落・余剰とも ValueError）。
+  フラット形式では値が list / dict でないトップキー（``scheme_version`` などのメタ）はクラスとして扱わない。
+- キャッシュ鍵 ``prompts_sha1`` は Path / dict どちらでも正規化 JSON（sort_keys、区切り最小、ensure_ascii=False）の
+  sha1。同一内容なら鍵が一致し、run 間で記録値が揃う。
 - 葉（第3階層）スコアのブランチ内 max 集約（D11 / M1）はこの関数の対象外。ここは第2階層クラス単位のフラット平均。
 """
 
@@ -25,7 +29,15 @@ from cascade import paths
 from cascade.embed.encoder import Encoder
 
 DEFAULT_CLASS_ORDER = ("food", "drink", "menu", "inside", "outside")
-_SKIP_KEYS = {"class_order", "taxonomy_version", "version", "scheme", "generated_at", "meta"}
+_SKIP_KEYS = {
+    "class_order",
+    "taxonomy_version",
+    "scheme_version",
+    "version",
+    "scheme",
+    "generated_at",
+    "meta",
+}
 
 
 def _texts(value: Any) -> list[str]:
@@ -59,8 +71,12 @@ def parse_prompts(prompts: dict[str, Any]) -> tuple[dict[str, list[str]], list[s
                 raise ValueError(f"classes 要素に id が無い: {entry}")
             per_class[str(cid)] = _texts(entry)
     elif isinstance(body, dict):
+        flat = "classes" not in prompts
         for cid, v in body.items():
             if cid in _SKIP_KEYS:
+                continue
+            if flat and not isinstance(v, (list, dict)):
+                # フラット形式のメタ値（"0.1.0" 等）はクラスではない
                 continue
             per_class[str(cid)] = _texts(v)
     else:
@@ -72,6 +88,11 @@ def parse_prompts(prompts: dict[str, Any]) -> tuple[dict[str, list[str]], list[s
         missing = [c for c in order if c not in per_class]
         if missing:
             raise ValueError(f"class_order にあるがプロンプトが無いクラス: {missing}")
+        extra = [c for c in per_class if c not in order]
+        if extra:
+            raise ValueError(f"プロンプトにあるが class_order に無いクラス: {extra}")
+        if len(set(order)) != len(order):
+            raise ValueError(f"class_order に重複がある: {order}")
     else:
         order = [c for c in DEFAULT_CLASS_ORDER if c in per_class]
         order += [c for c in per_class if c not in order]
@@ -81,12 +102,20 @@ def parse_prompts(prompts: dict[str, Any]) -> tuple[dict[str, list[str]], list[s
     return {c: per_class[c] for c in order}, order
 
 
+def canonical_json(data: Any) -> bytes:
+    """正規化 JSON（sort_keys、最小区切り、ensure_ascii=False）。Path / dict のどちらでも同じ鍵になる。"""
+    return json.dumps(data, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode(
+        "utf-8"
+    )
+
+
 def prompts_sha1(prompts_json: Path | dict[str, Any]) -> str:
-    if isinstance(prompts_json, dict):
-        raw = json.dumps(prompts_json, sort_keys=True, ensure_ascii=False).encode("utf-8")
-    else:
-        raw = Path(prompts_json).read_bytes()
-    return hashlib.sha1(raw).hexdigest()
+    data = (
+        prompts_json
+        if isinstance(prompts_json, dict)
+        else json.loads(Path(prompts_json).read_text(encoding="utf-8"))
+    )
+    return hashlib.sha1(canonical_json(data)).hexdigest()
 
 
 def _l2(x: np.ndarray) -> np.ndarray:

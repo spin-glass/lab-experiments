@@ -7,7 +7,10 @@ docs/taxonomy.md §6 の ``taxonomy_viz.py``。``taxonomy_build.py`` と同じ�
 - ``taxonomy.svg``: Graphviz ``dot`` が PATH にある場合のみ生成する。無ければ警告を出して
   終了コード 0（開発機に dot が無くても build/viz の束ねが止まらないようにする）
 
-検証に失敗した場合は何も書かずに終了コード 1。
+検証に失敗した場合は何も書かずに終了コード 1。dot の実行を先に済ませてから md / svg を
+一時ファイル経由で原子的に書く（dot の OSError で md だけ更新された状態を残さない）。
+ノード id は概念 id に ``n_`` を前置する（Mermaid / DOT の予約語 ``end`` / ``class`` 等や
+ルートノードとの衝突を避ける）。
 
 CLI::
 
@@ -31,9 +34,11 @@ from taxonomy_build import (
     TaxonomyError,
     class_order,
     load_and_validate,
+    write_all_atomic,
+    write_atomic,
 )
 
-ROOT_ID = "all_images"
+ROOT_ID = "root"
 ROOT_LABEL = "全画像"
 LEVEL_NAMES = {
     1: "第1階層（ブランチ・導出のみ）",
@@ -46,13 +51,19 @@ def _mermaid_escape(s: str) -> str:
     return s.replace('"', "&quot;")
 
 
+def node_id(concept_id: str) -> str:
+    """図のノード id。予約語・ルートノードと衝突しないよう ``n_`` を前置する。"""
+    return f"n_{concept_id}"
+
+
 def _mermaid_node(c: Concept) -> str:
     label = _mermaid_escape(f"{c.prefLabel}<br/><code>{c.id}</code>")
+    nid = node_id(c.id)
     if c.level == 1:
-        return f'{c.id}(["{label}"])'
+        return f'{nid}(["{label}"])'
     if c.level == 2:
-        return f'{c.id}["{label}"]'
-    return f'{c.id}[/"{label}"/]'
+        return f'{nid}["{label}"]'
+    return f'{nid}[/"{label}"/]'
 
 
 def render_mermaid(tx: Taxonomy) -> str:
@@ -67,19 +78,23 @@ def render_mermaid(tx: Taxonomy) -> str:
             lines.append(f"        {_mermaid_node(c)}")
         lines.append("    end")
     for c in tx.concepts:
-        parent = ROOT_ID if c.broader is None else c.broader
-        lines.append(f"    {parent} --> {c.id}")
+        parent = ROOT_ID if c.broader is None else node_id(c.broader)
+        lines.append(f"    {parent} --> {node_id(c.id)}")
     lines.append("    classDef l1 fill:#eeeeee,stroke:#555;")
     lines.append("    classDef food fill:#ffe8cc,stroke:#c60;")
     lines.append("    classDef nonfood fill:#dde8ff,stroke:#36c;")
-    l1 = [c.id for c in tx.level(1)]
+    l1 = [node_id(c.id) for c in tx.level(1)]
     if l1:
         lines.append(f"    class {','.join(l1)} l1;")
     food_ids = [
-        c.id for c in tx.concepts if c.level >= 2 and tx.derived_level1(c.id) == "food_branch"
+        node_id(c.id)
+        for c in tx.concepts
+        if c.level >= 2 and tx.derived_level1(c.id) == "food_branch"
     ]
     non_ids = [
-        c.id for c in tx.concepts if c.level >= 2 and tx.derived_level1(c.id) != "food_branch"
+        node_id(c.id)
+        for c in tx.concepts
+        if c.level >= 2 and tx.derived_level1(c.id) != "food_branch"
     ]
     if food_ids:
         lines.append(f"    class {','.join(food_ids)} food;")
@@ -126,7 +141,8 @@ def render_tree_md(tx: Taxonomy) -> str:
 
 
 def _dot_escape(s: str) -> str:
-    return s.replace("\\", "\\\\").replace('"', '\\"')
+    """DOT の二重引用符文字列: ``\\`` と ``"`` をエスケープし、実改行は ``\\n`` にする。"""
+    return s.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
 
 
 def render_dot(tx: Taxonomy) -> str:
@@ -141,17 +157,17 @@ def render_dot(tx: Taxonomy) -> str:
         color = "#ffe8cc" if tx.derived_level1(c.id) == "food_branch" else "#dde8ff"
         if c.level == 1:
             color = fill[1]
-        label = _dot_escape(f"{c.prefLabel}\\n{c.id}")
-        lines.append(f'    {c.id} [label="{label}", fillcolor="{color}"];')
+        label = _dot_escape(f"{c.prefLabel}\n{c.id}")
+        lines.append(f'    {node_id(c.id)} [label="{label}", fillcolor="{color}"];')
     for c in tx.concepts:
-        parent = ROOT_ID if c.broader is None else c.broader
-        lines.append(f"    {parent} -> {c.id};")
+        parent = ROOT_ID if c.broader is None else node_id(c.broader)
+        lines.append(f"    {parent} -> {node_id(c.id)};")
     lines.append("}")
     return "\n".join(lines) + "\n"
 
 
-def write_svg(dot_text: str, svg_path: Path) -> bool:
-    """dot が PATH にあれば SVG を書いて True、無ければ警告して False。"""
+def render_svg(dot_text: str) -> str | None:
+    """dot が PATH にあれば SVG 文字列を返す。無い／失敗なら警告して None（ファイルは書かない）。"""
     dot = shutil.which("dot")
     if dot is None:
         print(
@@ -159,17 +175,32 @@ def write_svg(dot_text: str, svg_path: Path) -> bool:
             "（taxonomy_tree.md の Mermaid 図で代替。brew install graphviz で有効化）",
             file=sys.stderr,
         )
-        return False
-    res = subprocess.run(
-        [dot, "-Tsvg"], input=dot_text, capture_output=True, text=True, check=False
-    )
+        return None
+    try:
+        res = subprocess.run(
+            [dot, "-Tsvg"], input=dot_text, capture_output=True, text=True, check=False
+        )
+    except OSError as e:
+        print(
+            f"[taxonomy_viz] warning: dot を実行できないため taxonomy.svg は生成しない: {e}",
+            file=sys.stderr,
+        )
+        return None
     if res.returncode != 0:
         print(
             f"[taxonomy_viz] warning: dot が失敗したため taxonomy.svg は生成しない\n{res.stderr}",
             file=sys.stderr,
         )
+        return None
+    return res.stdout
+
+
+def write_svg(dot_text: str, svg_path: Path) -> bool:
+    """dot が PATH にあれば SVG を書いて True、無ければ警告して False。"""
+    svg = render_svg(dot_text)
+    if svg is None:
         return False
-    svg_path.write_text(res.stdout, encoding="utf-8")
+    write_atomic(svg_path, svg)
     return True
 
 
@@ -178,20 +209,20 @@ def viz(
     out_dir: str | Path = HERE,
     rulebook: str | Path | None = None,
 ) -> dict[str, Path]:
-    """検証 → taxonomy_tree.md（常に）→ taxonomy.svg（dot がある場合のみ）。"""
+    """検証 → dot 実行（先）→ taxonomy_tree.md（常に）→ taxonomy.svg（dot がある場合のみ）を原子的に書く。"""
     tx = load_and_validate(yaml_path, rulebook=rulebook)
     md_text = render_tree_md(tx)
     dot_text = render_dot(tx)
+    svg_text = render_svg(dot_text)  # 書き込みの前に外部コマンドを済ませる
 
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
-    written: dict[str, Path] = {}
-    md_path = out / "taxonomy_tree.md"
-    md_path.write_text(md_text, encoding="utf-8")
-    written["taxonomy_tree.md"] = md_path
-    svg_path = out / "taxonomy.svg"
-    if write_svg(dot_text, svg_path):
-        written["taxonomy.svg"] = svg_path
+    written: dict[str, Path] = {"taxonomy_tree.md": out / "taxonomy_tree.md"}
+    files = {written["taxonomy_tree.md"]: md_text}
+    if svg_text is not None:
+        written["taxonomy.svg"] = out / "taxonomy.svg"
+        files[written["taxonomy.svg"]] = svg_text
+    write_all_atomic(files)
     return written
 
 

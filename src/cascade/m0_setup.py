@@ -11,11 +11,12 @@
 実行: ``uv run python -m cascade.m0_setup check-env [--skip-model] [--encoder e1]``
 （計画 Phase B-a の表記 ``--check-env`` も同じ意味で受け付ける: ``python -m cascade.m0_setup --check-env --skip-model``）
 
-TODO(M0, Yelp 到着後 / Phase B-b): 以下は Yelp Open Dataset の手動配置（paths.YELP）に依存するため未実装。
-  - ``ingest-yelp``: photos.json の読み込みとチェックサム検証、規約 PDF 確認の記録
-  - ``sample``: 層化サンプリングと tune_fit / tune_cal / work / eval の分割（business_id と dup 群の非交差）
-  - ``freeze-eval``: eval の photo_id リストのハッシュ凍結と eval_sets への記録、W&B reference artifact
-  - ``report``: reports/m0_setup.md の自動生成（フッタ: run_id / git sha / taxonomy_version / rulebook_version=未導入 / eval_set_id / コスト / W&B URL）
+Phase B-b（Yelp 到着後。Yelp Open Dataset を paths.YELP に手動配置してから実行）:
+- ``verify-yelp``: レイアウト検査（photos.json / photos/ / 規約 PDF / DOWNLOAD.txt の sha256）、photos.json の読取、
+  クラス別枚数・ラベル欠損率、標本画像のサイズ・JPEG 品質統計。JSON を marts/yelp_stats.json に保存
+- ``build-splits``: business_id（``--with-dedup`` で pHash 群も連結。再開可能・バッチ）単位の
+  tune_fit / tune_cal / work / eval 分割 → core/labels、core/eval_sets（役割別 sha256）、marts/splits.parquet、
+  runs 行（tracking fan-out）、reports/m0_setup.md。photo_id 一覧はリポジトリに置かない
 """
 
 from __future__ import annotations
@@ -25,14 +26,17 @@ import os
 import platform
 import sys
 import time
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated, Any
 
 import numpy as np
+import polars as pl
 import typer
 
 from cascade import paths
 from cascade.config import load_config
+from cascade.data import yelp as yelp_mod
 from cascade.embed.encoder import find_spec, is_cached_locally, load_encoder, resolve_device
 
 app = typer.Typer(help="M0 セットアップ（環境確認・データ準備）", no_args_is_help=True)
@@ -174,6 +178,253 @@ def check_env(
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(text + "\n", encoding="utf-8")
     typer.echo(text)
+
+
+DEFAULT_M0_CONFIG = paths.REPO_ROOT / "configs" / "m0.yaml"
+DEFAULT_REPORT = paths.REPO_ROOT / "reports" / "m0_setup.md"
+
+
+def _stats_path() -> Path:
+    return paths.LAYERS["marts"] / "yelp_stats.json"
+
+
+def _load_m0_config(config: Path) -> dict[str, Any]:
+    cfg = load_config(config)  # ピン留め検証込み（taxonomy_version 等）
+    tracking_path = paths.REPO_ROOT / "configs" / "tracking.yaml"
+    if "tracking" not in cfg and tracking_path.exists():
+        cfg.update(load_config(tracking_path, validate=False))
+    return cfg
+
+
+def verify_yelp_stats(
+    cfg: dict[str, Any], root: Path | None, *, n_sample: int | None = None, seed: int | None = None
+) -> dict[str, Any]:
+    """verify-yelp の本体。レイアウト・photos.json の統計・標本画像統計を dict で返す（集計値のみ）。"""
+    ycfg = cfg.get("yelp", {}) or {}
+    layout = yelp_mod.verify_layout(root, cfg)
+    out: dict[str, Any] = {"layout": layout}
+    pj = Path(layout["photos_json"])
+    if not pj.is_file():
+        return out
+    df = yelp_mod.load_photos_json(pj)
+    out["photos_json_sha256"] = yelp_mod.dedup.sha256_file(pj)
+    out["n_photos"] = int(df.height)
+    out["n_businesses"] = int(df["business_id"].drop_nulls().n_unique())
+    out["class_counts"] = yelp_mod.class_counts(
+        df, cfg.get("splits", {}).get("classes") or yelp_mod.CLASSES
+    ).to_dicts()
+    out["missing_label_rate"] = yelp_mod.missing_label_rate(df)
+    scfg = ycfg.get("sample_image_stats", {}) or {}
+    n = int(scfg.get("n", 2000) if n_sample is None else n_sample)
+    sd = int(scfg.get("seed", 0) if seed is None else seed)
+    if n > 0 and Path(layout["photos_dir"]).is_dir():
+        stats = yelp_mod.sample_image_stats(
+            df,
+            Path(layout["root"]),
+            n=n,
+            seed=sd,
+            photos_dir=str(ycfg.get("photos_dir", "photos")),
+            ext=str(ycfg.get("image_ext", ".jpg")),
+        )
+        out["image_stats"] = yelp_mod.summarize_image_stats(stats)
+        out["image_stats"]["sample"] = {"n": n, "seed": sd}
+    return out
+
+
+@app.command("verify-yelp")
+def verify_yelp(
+    config: Annotated[Path, typer.Option(help="configs/m0.yaml")] = DEFAULT_M0_CONFIG,
+    root: Annotated[Path | None, typer.Option(help="Yelp の配置先（既定 data/yelp）")] = None,
+    n_sample: Annotated[int | None, typer.Option(help="標本画像の枚数（config 既定）")] = None,
+    seed: Annotated[int | None, typer.Option(help="標本の seed（config 既定）")] = None,
+    out: Annotated[
+        Path | None, typer.Option(help="JSON 保存先（既定 marts/yelp_stats.json）")
+    ] = None,
+    strict: Annotated[bool, typer.Option("--strict", help="レイアウト不備で非 0 終了")] = False,
+) -> None:
+    """Yelp 配置の検証: レイアウト・規約記録・クラス別枚数・欠損率・標本画像統計（集計値のみ）。"""
+    cfg = _load_m0_config(config)
+    result = verify_yelp_stats(cfg, root, n_sample=n_sample, seed=seed)
+    text = json.dumps(result, indent=2, ensure_ascii=False, default=str)
+    out = out or _stats_path()
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(text + "\n", encoding="utf-8")
+    typer.echo(text)
+    if strict and not result["layout"]["ok"]:
+        raise typer.Exit(code=1)
+
+
+def run_build_splits(
+    cfg: dict[str, Any],
+    root: Path | None,
+    *,
+    with_dedup: bool = False,
+    report_path: Path | None = None,
+    stats_path: Path | None = None,
+) -> dict[str, Any]:
+    """build-splits の本体。テーブル・runs 行・レポートを書き、集計 dict を返す。"""
+    from cascade.io import tables
+    from cascade.tracking.adapter import RunRecorder
+
+    scfg = dict(cfg.get("splits", {}) or {})
+    ycfg = cfg.get("yelp", {}) or {}
+    dcfg = cfg.get("dedup", {}) or {}
+    layout = yelp_mod.verify_layout(root, cfg)
+    pj = Path(layout["photos_json"])
+    if not pj.is_file():
+        raise FileNotFoundError(
+            f"photos.json が無い: {pj}（先に Yelp を配置し verify-yelp を実行）"
+        )
+    df = yelp_mod.load_photos_json(pj)
+    pj_sha = yelp_mod.dedup.sha256_file(pj)
+
+    groups: dict[str, str] | None = None
+    dedup_info: dict[str, Any] | None = None
+    if with_dedup:
+        shard_dir = Path(layout["root"]) / str(dcfg.get("shard_dir", "_phash"))
+        phashes = yelp_mod.compute_phash_shards(
+            df,
+            Path(layout["root"]),
+            shard_dir,
+            batch_size=int(dcfg.get("batch_size", 5000)),
+            photos_dir=str(ycfg.get("photos_dir", "photos")),
+            ext=str(ycfg.get("image_ext", ".jpg")),
+        )
+        groups = yelp_mod.build_dedup_groups(phashes, int(dcfg.get("phash_max", 8)))
+        sizes: dict[str, int] = {}
+        for g in groups.values():
+            sizes[g] = sizes.get(g, 0) + 1
+        multi = {g: n for g, n in sizes.items() if n > 1}
+        dedup_info = {
+            "n_hashed": len(phashes),
+            "n_groups_multi": len(multi),
+            "n_in_groups": int(sum(multi.values())),
+            "phash_max": int(dcfg.get("phash_max", 8)),
+        }
+
+    splits = yelp_mod.build_splits(df, groups, scfg, scfg.get("seed", "yelp-splits-v1"))
+    crossing = yelp_mod.dedup.check_no_crossing(
+        dict(zip(splits["photo_id"].to_list(), splits["role"].to_list(), strict=True)),
+        dict(zip(splits["photo_id"].to_list(), splits["component_id"].to_list(), strict=True)),
+    )
+    summary = yelp_mod.split_summary(splits, df, scfg.get("classes") or yelp_mod.CLASSES)
+    now = datetime.now(UTC)
+    eval_rows = yelp_mod.freeze_eval_sets(
+        splits,
+        prefix=str(scfg.get("eval_set_prefix", "yelp-v1")),
+        seed=scfg.get("seed", ""),
+        now=now,
+    )
+
+    # core/labels（Yelp 付与ラベル。来歴の混在した既存ラベル）
+    labels = df.select(
+        pl.col("photo_id"),
+        pl.lit("yelp").alias("label_source"),
+        pl.col("label"),
+        pl.lit(f"photos.json sha256={pj_sha}").alias("provenance"),
+        pl.lit(now).alias("ts"),
+    )
+    tables.write_table("labels", labels, "core")
+    tables.write_table("eval_sets", pl.DataFrame(eval_rows), "core")
+    marts_dir = paths.LAYERS["marts"]
+    marts_dir.mkdir(parents=True, exist_ok=True)
+    splits_path = marts_dir / "splits.parquet"
+    splits.write_parquet(splits_path)
+
+    stats: dict[str, Any] = {}
+    stats_path = stats_path or _stats_path()
+    if stats_path.exists():
+        stats = json.loads(stats_path.read_text(encoding="utf-8"))
+    stats.update(
+        {
+            "layout": layout,
+            "photos_json_sha256": pj_sha,
+            "n_photos": int(df.height),
+            "n_businesses": int(df["business_id"].drop_nulls().n_unique()),
+            "class_counts": yelp_mod.class_counts(
+                df, scfg.get("classes") or yelp_mod.CLASSES
+            ).to_dicts(),
+            "missing_label_rate": yelp_mod.missing_label_rate(df),
+            "split_config": scfg,
+            "split_summary": summary.to_dicts(),
+            "crossing": crossing,
+            "eval_sets": [{**r, "created_at": r["created_at"].isoformat()} for r in eval_rows],
+            "dedup": dedup_info,
+        }
+    )
+
+    eval_set_id = f"{scfg.get('eval_set_prefix', 'yelp-v1')}-eval"
+    rec = RunRecorder(
+        cfg,
+        taxonomy_version=str(cfg.get("taxonomy_version")),
+        rulebook_version=str(cfg.get("rulebook_version", "未導入")),
+        eval_set_id=eval_set_id,
+        model_id="none",
+    )
+    rec.log_metrics(
+        {
+            "n_photos": int(df.height),
+            "n_businesses": stats["n_businesses"],
+            "missing_label_rate": stats["missing_label_rate"],
+            **{
+                f"n_{r['role']}": int(r["n_items"])
+                for r in summary.unique(subset=["role"]).to_dicts()
+            },
+            "n_crossing": len(crossing),
+        }
+    )
+    rec.log_table("split_summary", summary)
+    rec.log_table(
+        "eval_sets", pl.DataFrame(eval_rows).with_columns(pl.col("created_at").cast(pl.Utf8))
+    )
+    finished = rec.finish()
+    stats["stamps"] = {
+        "run_id": rec.run_id,
+        "git_sha": rec.stamps["git_sha"],
+        "taxonomy_version": rec.stamps["taxonomy_version"],
+        "rulebook_version": rec.stamps["rulebook_version"],
+        "eval_set_id": eval_set_id,
+        "api_cost": "0（API 呼び出しなし）",
+        "wandb_url": finished.get("wandb_url"),
+        "tracking": finished.get("backends"),
+        "generated_at": now.isoformat(),
+    }
+    stats_path.parent.mkdir(parents=True, exist_ok=True)
+    stats_path.write_text(
+        json.dumps(stats, indent=2, ensure_ascii=False, default=str) + "\n", encoding="utf-8"
+    )
+    report_path = report_path or DEFAULT_REPORT
+    yelp_mod.m0_report(stats, splits, report_path)
+    return {
+        "run_id": rec.run_id,
+        "splits_parquet": str(splits_path),
+        "report": str(report_path),
+        "stats_json": str(stats_path),
+        "crossing": crossing,
+        "split_summary": summary.to_dicts(),
+        "eval_sets": stats["eval_sets"],
+        "tracking": finished.get("backends"),
+    }
+
+
+@app.command("build-splits")
+def build_splits(
+    config: Annotated[Path, typer.Option(help="configs/m0.yaml")] = DEFAULT_M0_CONFIG,
+    root: Annotated[Path | None, typer.Option(help="Yelp の配置先（既定 data/yelp）")] = None,
+    with_dedup: Annotated[
+        bool,
+        typer.Option("--with-dedup", help="pHash 近重複群を分割キーに加える（バッチ・再開可能）"),
+    ] = False,
+    report: Annotated[Path | None, typer.Option(help="reports/m0_setup.md の出力先")] = None,
+) -> None:
+    """tune_fit / tune_cal / work / eval 分割と eval 凍結、reports/m0_setup.md の生成。"""
+    cfg = _load_m0_config(config)
+    try:
+        result = run_build_splits(cfg, root, with_dedup=with_dedup, report_path=report)
+    except yelp_mod.SplitSizeError as e:
+        typer.echo(f"SplitSizeError: {e}", err=True)
+        raise typer.Exit(code=2) from e
+    typer.echo(json.dumps(result, indent=2, ensure_ascii=False, default=str))
 
 
 def main(argv: list[str] | None = None) -> None:

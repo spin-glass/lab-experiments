@@ -6,10 +6,11 @@ docs/taxonomy.md §6・design.md §4 の実装。正本は ``taxonomy/taxonomy.y
 1. 検証 — id / prefLabel の一意性、broader 参照先の存在、階層規則（第1階層は無親・
    第2階層の親は第1階層・第3階層の親は第2階層）、第2階層がちょうど運用クラス数（5）で
    あること、各運用クラスにプロンプト源（自身または第3階層の子）があること、
-   ``--rulebook`` 指定時は優先規則が第2階層を過不足なく被覆すること。
+   ``--rulebook`` 指定時は優先規則が第2階層を被覆する（各クラスが ≥ 1 規則の target）こと。
 2. 生成 — 検証に 1 件でも失敗したら **何も書かずに** 異常終了する（TaxonomyError / exit 1）。
-   全出力を先にメモリ上で組み立て、Turtle は rdflib で往復パースして概念数が一致することを
-   確認してから、まとめてファイルへ書く。
+   全出力を先にメモリ上で組み立て、Turtle は rdflib で往復パースして概念・版・broader・
+   prefLabel・altLabel（プロンプト）が一致することを確認してから、各ファイルを一時ファイル経由で
+   原子的に置換する（途中失敗で新旧が混在しない）。
 
 第1階層（food / non-food）はゴールドに記録せず導出のみ（taxonomy.md T2）。
 label_master.csv の ``derived_level1`` 列は ``broader`` を辿って機械的に導出し、手で持たせない。
@@ -25,6 +26,7 @@ import argparse
 import csv
 import io
 import json
+import os
 import re
 import sys
 from collections import Counter
@@ -45,8 +47,12 @@ DEFAULT_RULEBOOK = HERE.parent / "rulebook.md"
 OPERATIONAL_CLASS_COUNT = 5
 #: プロンプトの言語タグ（altLabel の言語キー）
 PROMPT_LANG = "en"
-#: rulebook.md の優先規則行。``- rule: ... target: <level2_id>`` を 1 規則 1 行で書く
-RULE_LINE_RE = re.compile(r"^- rule:.*?\btarget:\s*([a-z][a-z0-9_]*)\b")
+#: rulebook.md の優先規則行の文法（design.md §4(c) の優先規則は曖昧ペアごとなので、同じ第2階層が
+#: 複数規則の target になるのが正常）:
+#:   ``- rule: <id> | target: <level2_id> | when: ...``  を 1 規則 1 行で書く（大文字小文字は無視）。
+#:   target は ``target: food`` / ``target: `food```（バッククォート可）。1 行に複数の target を書いてよい。
+RULE_LINE_RE = re.compile(r"^-\s*rule:", re.IGNORECASE)
+RULE_TARGET_RE = re.compile(r"target:\s*`?([a-z][a-z0-9_]*)`?(?![a-z0-9_-])", re.IGNORECASE)
 NODE_ID_RE = re.compile(r"^[a-z][a-z0-9_]*$")
 SEMVER_RE = re.compile(r"^\d+\.\d+\.\d+$")
 
@@ -287,24 +293,35 @@ def validate(tx: Taxonomy, *, rulebook: str | Path | None = None) -> list[str]:
     return errors
 
 
-def check_rulebook_coverage(rulebook: Path, level2_ids: list[str]) -> list[str]:
-    """rulebook.md の ``- rule: ... target: <id>`` 行が第2階層を過不足なく（各 1 回）被覆するか。
+def parse_rule_targets(text: str) -> Counter[str]:
+    """rulebook 本文から ``- rule:`` 行の target（小文字化）を数える。"""
+    targets: Counter[str] = Counter()
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not RULE_LINE_RE.match(stripped):
+            continue
+        for t in RULE_TARGET_RE.findall(stripped):
+            targets[t.lower()] += 1
+    return targets
 
-    ファイルが無ければ通知だけ出して空（合格）を返す。rulebook は M1 以降で導入される。
+
+def check_rulebook_coverage(rulebook: Path, level2_ids: list[str]) -> list[str]:
+    """rulebook.md の ``- rule: ... target: <id>`` 行が第2階層を被覆するか（各クラス ≥ 1 件）。
+
+    同じクラスが複数規則の target になるのは正常（曖昧ペアごとの規則）。第2階層以外の target は
+    エラー。ファイルが無ければ通知だけ出して空（合格）を返す。rulebook は M1 以降で導入される。
     """
     if not rulebook.exists():
         print(f"[taxonomy_build] notice: rulebook が無いので被覆検証をスキップ: {rulebook}")
         return []
-    targets: Counter[str] = Counter()
-    for line in rulebook.read_text(encoding="utf-8").splitlines():
-        m = RULE_LINE_RE.match(line.strip())
-        if m:
-            targets[m.group(1)] += 1
+    targets = parse_rule_targets(rulebook.read_text(encoding="utf-8"))
     errors: list[str] = []
     for cid in level2_ids:
         n = targets.get(cid, 0)
-        if n != 1:
-            errors.append(f"rulebook: 第2階層 {cid} を target とする優先規則が {n} 件（1 件必要）")
+        if n < 1:
+            errors.append(
+                f"rulebook: 第2階層 {cid} を target とする優先規則が 0 件（1 件以上必要）"
+            )
     for t in targets:
         if t not in level2_ids:
             errors.append(f"rulebook: target = {t!r} は第2階層ではない")
@@ -406,7 +423,8 @@ def render_ttl(tx: Taxonomy) -> str:
 
 
 def roundtrip_check(ttl_text: str, tx: Taxonomy) -> None:
-    """Turtle を再パースして概念数・版が一致することを確認する（標準形式への出口の保証）。"""
+    """Turtle を再パースして概念数・版・broader・prefLabel・altLabel が一致することを確認する
+    （標準形式への出口の保証）。"""
     g = Graph()
     g.parse(data=ttl_text, format="turtle")
     n_concepts = len(set(g.subjects(RDF.type, SKOS.Concept)))
@@ -418,13 +436,51 @@ def roundtrip_check(ttl_text: str, tx: Taxonomy) -> None:
     if versions != {tx.version}:
         raise TaxonomyError(f"Turtle 往復パースで版が不一致: yaml={tx.version} ttl={versions}")
     for c in tx.concepts:
+        u = concept_uri(tx, c.id)
         if c.broader is not None:
-            parent = set(g.objects(concept_uri(tx, c.id), SKOS.broader))
+            parent = set(g.objects(u, SKOS.broader))
             if parent != {concept_uri(tx, c.broader)}:
                 raise TaxonomyError(f"Turtle 往復パースで broader が不一致: {c.id}")
+        pref = {str(o) for o in g.objects(u, SKOS.prefLabel)}
+        if pref != {c.prefLabel}:
+            raise TaxonomyError(
+                f"Turtle 往復パースで prefLabel が不一致: {c.id} yaml={c.prefLabel!r} ttl={pref}"
+            )
+        alts = {
+            str(o)
+            for o in g.objects(u, SKOS.altLabel)
+            if getattr(o, "language", None) == PROMPT_LANG
+        }
+        if alts != set(c.prompts):
+            raise TaxonomyError(
+                f"Turtle 往復パースで altLabel@{PROMPT_LANG} が不一致: {c.id} "
+                f"yaml={sorted(c.prompts)} ttl={sorted(alts)}"
+            )
 
 
 OUTPUT_NAMES = ("prompts.json", "label_master.csv", "taxonomy.ttl")
+
+
+def write_atomic(path: Path, text: str) -> None:
+    """``<name>.tmp`` に書いてから ``os.replace`` で置換する（書きかけを残さない）。"""
+    write_all_atomic({path: text})
+
+
+def write_all_atomic(files: dict[Path, str]) -> None:
+    """複数ファイルを全件 ``<name>.tmp`` に書き終えてから順に ``os.replace`` する。
+
+    tmp の書き込みで失敗したら tmp を全部消して何も置換しない（新旧混在を作らない）。
+    """
+    tmps: dict[Path, Path] = {p: p.with_name(p.name + ".tmp") for p in files}
+    try:
+        for p, text in files.items():
+            tmps[p].write_text(text, encoding="utf-8")
+    except BaseException:
+        for t in tmps.values():
+            t.unlink(missing_ok=True)
+        raise
+    for p, t in tmps.items():
+        os.replace(t, p)
 
 
 def build(
@@ -432,7 +488,7 @@ def build(
     out_dir: str | Path = HERE,
     rulebook: str | Path | None = None,
 ) -> dict[str, Path]:
-    """検証 → 全生成物をメモリで組み立て → 往復確認 → 一括書き出し。失敗時は何も書かない。"""
+    """検証 → 全生成物をメモリで組み立て → 往復確認 → 原子的に書き出し。検証失敗時は何も書かない。"""
     tx = load_and_validate(yaml_path, rulebook=rulebook)
     outputs = {
         "prompts.json": render_prompts_json(tx),
@@ -443,11 +499,8 @@ def build(
 
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
-    written: dict[str, Path] = {}
-    for name, text in outputs.items():
-        p = out / name
-        p.write_text(text, encoding="utf-8")
-        written[name] = p
+    written = {name: out / name for name in outputs}
+    write_all_atomic({written[name]: text for name, text in outputs.items()})
     return written
 
 

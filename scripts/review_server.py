@@ -2,31 +2,36 @@
 
 計画「目視確認の設計」/ design.md §2・§5（scope_annotations）を実装する。
 
+- キュー（``review_queue.build_queue`` の出力）は item_id / pass だけを持ち、画像の場所は map jsonl
+  （``--map``。既定 ``<queue>.map.jsonl``）からサーバ側で解決する。API 応答にも path / source は出ない（盲検。
+  devtools やキューファイルを開いても源・候補ラベルが見えない）
 - 画像は ``paths.DATA`` 配下からのみ配信（``/img/<item_id>``。DATA の外を指すパスは 403）
-- キュー（``review_queue.build_queue`` の出力）は item_id / path / pass だけを持つので、画面には
-  source・候補ラベル・スコア・split が一切出ない（盲検）
 - ラベルは ``--out`` の jsonl に 1 行ずつ追記（ts は ISO 8601 UTC）。起動時に ``--out`` を読んで再開し、
-  同一 (item_id, pass) は最新行が勝つ。「undo」は前の項目へ戻って付け直す（追記型なので削除はしない）
+  同一 (item_id, pass) は最新行が勝つ。**再開は同じ guideline_version の行だけ**を「済み」と見なす。
+  別版（パイロット等）の行がキュー内の項目に付いていれば、``--allow-mixed-versions`` が無い限り起動を拒否する
+  （付けると警告して、それらの項目は未判定として再表示する）。「undo」は前の項目へ戻って付け直す（追記型）
+- ループバック専用: Host ヘッダが 127.0.0.1 / localhost / [::1] 以外なら 403（DNS リバインディング対策）
 - 外部アセットなし。画像はどこにもコピーしない
 
 使い方::
 
-    uv run python scripts/review_server.py --queue data/review/q1.jsonl --out data/review/labels_p1.jsonl \\
+    uv run python scripts/review_server.py --queue data/review/queue_p1.jsonl --out data/review/labels_p1.jsonl \\
         --annotator a01 --guideline-version g0-guideline-0.1 --pass 1
 """
 
 from __future__ import annotations
 
 import argparse
+import html
 import json
 import sys
 import threading
 from datetime import UTC, datetime
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, unquote, urlsplit
 
 _SRC = Path(__file__).resolve().parents[1] / "src"
 if _SRC.is_dir() and str(_SRC) not in sys.path:
@@ -40,21 +45,36 @@ from cascade.data.review_queue import (  # noqa: E402
     QUALITY_VALUES,
     SUBJECT_TYPE_VALUES,
     latest_labels,
+    load_item_map,
     load_queue,
+    map_path_for,
 )
 
 _MIME = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp"}
+_ALLOWED_HOSTS = frozenset({"127.0.0.1", "localhost", "[::1]", "::1"})
 
 
 def utc_now_iso() -> str:
     return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
+class MixedGuidelineError(ValueError):
+    """--out に別 guideline_version のラベルがキュー内の項目へ付いている。"""
+
+
 class ReviewState:
-    """キュー・ラベル・追記先を束ねる（スレッド安全）。"""
+    """キュー・map・ラベル・追記先を束ねる（スレッド安全）。"""
 
     def __init__(
-        self, queue_path: Path, out_path: Path, annotator: str, guideline_version: str, pass_no: int
+        self,
+        queue_path: Path,
+        out_path: Path,
+        annotator: str,
+        guideline_version: str,
+        pass_no: int,
+        map_path: Path | None = None,
+        *,
+        allow_mixed_versions: bool = False,
     ):
         if pass_no not in (1, 2):
             raise ValueError("--pass は 1 か 2")
@@ -64,8 +84,40 @@ class ReviewState:
         self.guideline_version = guideline_version
         self.pass_no = pass_no
         self.by_id = {r["item_id"]: r for r in self.queue}
-        self.labels: dict[str, dict[str, Any]] = latest_labels(out_path, pass_no=pass_no)
-        self.labels = {k: v for k, v in self.labels.items() if k in self.by_id}
+        # キュー項目は {item_id, pass} だけ。画像の場所は map から引く（API には返さない）
+        self.map_path = Path(map_path) if map_path is not None else map_path_for(queue_path)
+        self._paths: dict[str, str] = {}
+        for item_id, m in load_item_map(self.map_path).items():
+            p = m.get("path")
+            if item_id in self.by_id and p:
+                self._paths[item_id] = str(p)
+        missing = [i for i in self.by_id if i not in self._paths]
+        if missing:
+            raise ValueError(
+                f"map ({self.map_path}) に path が無い item が {len(missing)} 件: {missing[:3]}"
+            )
+        # 再開: 同一 guideline_version の行だけを「済み」と見なす
+        all_latest = latest_labels(out_path, pass_no=pass_no)
+        self.labels: dict[str, dict[str, Any]] = {
+            k: v
+            for k, v in all_latest.items()
+            if k in self.by_id and v.get("guideline_version") == guideline_version
+        }
+        other = {
+            k: v.get("guideline_version")
+            for k, v in all_latest.items()
+            if k in self.by_id and v.get("guideline_version") != guideline_version
+        }
+        self.n_other_version = len(other)
+        if other:
+            versions = sorted({str(v) for v in other.values()})
+            msg = (
+                f"{out_path}: guideline_version {versions} のラベルがキュー内 {len(other)} 件に付いている"
+                f"（現在は {guideline_version!r}）"
+            )
+            if not allow_mixed_versions:
+                raise MixedGuidelineError(msg + "。--allow-mixed-versions で再判定として続行できる")
+            print(f"WARNING: {msg}。これらは未判定として再表示する", file=sys.stderr)
         self._lock = threading.Lock()
 
     # --- 参照 -------------------------------------------------------------------
@@ -85,13 +137,16 @@ class ReviewState:
 
     def image_path(self, item_id: str) -> Path | None:
         """DATA 配下に解決できるときだけ Path を返す。外へ出るなら PermissionError。"""
-        r = self.by_id.get(item_id)
-        if r is None:
+        rel = self._paths.get(item_id)
+        if rel is None:
             return None
+        parts = PurePosixPath(rel).parts
+        if PurePosixPath(rel).is_absolute() or any(part == ".." for part in parts):
+            raise PermissionError(rel)
         root = paths.DATA.resolve()
-        p = (root / r["path"]).resolve()
+        p = (root / rel).resolve()
         if not p.is_relative_to(root):
-            raise PermissionError(r["path"])
+            raise PermissionError(rel)
         return p
 
     # --- 更新 -------------------------------------------------------------------
@@ -118,6 +173,8 @@ class ReviewState:
                     raise ValueError(f"{field} must be one of {list(allowed)}")
                 row[field] = v
             bf = body.get("boundary_flag", False)
+            if bf is None:
+                bf = False
             if not isinstance(bf, bool):
                 raise ValueError("boundary_flag must be bool")
             row["boundary_flag"] = bf
@@ -243,14 +300,31 @@ next();
 """
 
 
+def _json_for_script(obj: Any) -> str:
+    """``<script>`` 内に埋めても閉じタグにならない JSON（``</`` を ``<\\/`` に）。"""
+    return json.dumps(obj, ensure_ascii=False).replace("</", "<\\/")
+
+
 def render_page(state: ReviewState) -> bytes:
-    html = (
-        PAGE_HTML.replace("__PASS__", str(state.pass_no))
-        .replace("__ANNOTATOR__", state.annotator)
-        .replace("__GUIDELINE__", state.guideline_version)
-        .replace("__CFG__", json.dumps(_page_config(state)))
+    page = (
+        PAGE_HTML.replace("__CFG__", _json_for_script(_page_config(state)))
+        .replace("__PASS__", html.escape(str(state.pass_no)))
+        .replace("__ANNOTATOR__", html.escape(state.annotator))
+        .replace("__GUIDELINE__", html.escape(state.guideline_version))
     )
-    return html.encode("utf-8")
+    return page.encode("utf-8")
+
+
+def host_allowed(host_header: str | None) -> bool:
+    """Host ヘッダのホスト部（ポート除去）がループバック名なら True。"""
+    if not host_header:
+        return False
+    h = host_header.strip().lower()
+    if h.startswith("["):  # [::1]:port
+        h = h.split("]")[0] + "]"
+    else:
+        h = h.rsplit(":", 1)[0] if h.count(":") == 1 else h
+    return h in _ALLOWED_HOSTS
 
 
 class ReviewHandler(BaseHTTPRequestHandler):
@@ -275,11 +349,21 @@ class ReviewHandler(BaseHTTPRequestHandler):
             out["index"] = None
         else:
             out.update(res)
+            # 盲検: item は {item_id, pass} のみ（path / source は返さない）
+            out["item"] = {"item_id": res["item"]["item_id"], "pass": res["item"]["pass"]}
             out["label"] = self.state.labels.get(res["item"]["item_id"])
         return out
 
+    def _check_host(self) -> bool:
+        if host_allowed(self.headers.get("Host")):
+            return True
+        self._json(HTTPStatus.FORBIDDEN, {"error": "forbidden host"})
+        return False
+
     # --- GET --------------------------------------------------------------------
     def do_GET(self) -> None:  # noqa: N802
+        if not self._check_host():
+            return
         url = urlsplit(self.path)
         if url.path == "/":
             body = render_page(self.state)
@@ -301,7 +385,7 @@ class ReviewHandler(BaseHTTPRequestHandler):
             self._json(HTTPStatus.OK, self.state.progress())
             return
         if url.path.startswith("/img/"):
-            self._serve_image(url.path[len("/img/") :])
+            self._serve_image(unquote(url.path[len("/img/") :]))
             return
         self._json(HTTPStatus.NOT_FOUND, {"error": "not found"})
 
@@ -324,6 +408,8 @@ class ReviewHandler(BaseHTTPRequestHandler):
 
     # --- POST -------------------------------------------------------------------
     def do_POST(self) -> None:  # noqa: N802
+        if not self._check_host():
+            return
         url = urlsplit(self.path)
         if url.path != "/api/label":
             self._json(HTTPStatus.NOT_FOUND, {"error": "not found"})
@@ -351,9 +437,20 @@ def create_server(
     pass_no: int,
     port: int = 8765,
     host: str = "127.0.0.1",
+    map_path: Path | None = None,
+    *,
+    allow_mixed_versions: bool = False,
 ) -> ThreadingHTTPServer:
     """サーバを生成する（``serve_forever`` は呼ばない。テストからスレッドで起動できる）。"""
-    state = ReviewState(Path(queue), Path(out), annotator, guideline_version, pass_no)
+    state = ReviewState(
+        Path(queue),
+        Path(out),
+        annotator,
+        guideline_version,
+        pass_no,
+        map_path,
+        allow_mixed_versions=allow_mixed_versions,
+    )
     handler = type("BoundReviewHandler", (ReviewHandler,), {"state": state})
     return ThreadingHTTPServer((host, port), handler)
 
@@ -361,15 +458,30 @@ def create_server(
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="blind visual review server (stdlib only)")
     ap.add_argument("--queue", required=True, type=Path)
+    ap.add_argument(
+        "--map", type=Path, default=None, help="item_id → path の map jsonl（既定 <queue>.map.jsonl）"
+    )
     ap.add_argument("--out", required=True, type=Path)
     ap.add_argument("--port", type=int, default=8765)
     ap.add_argument("--annotator", required=True, help="仮名 ID")
     ap.add_argument("--guideline-version", required=True)
     ap.add_argument("--pass", dest="pass_no", type=int, choices=(1, 2), required=True)
+    ap.add_argument(
+        "--allow-mixed-versions",
+        action="store_true",
+        help="--out に別 guideline_version の行があっても起動し、それらの項目を再判定として表示する",
+    )
     args = ap.parse_args(argv)
 
     srv = create_server(
-        args.queue, args.out, args.annotator, args.guideline_version, args.pass_no, args.port
+        args.queue,
+        args.out,
+        args.annotator,
+        args.guideline_version,
+        args.pass_no,
+        args.port,
+        map_path=args.map,
+        allow_mixed_versions=args.allow_mixed_versions,
     )
     st = srv.RequestHandlerClass.state
     print(

@@ -7,6 +7,9 @@
 UV ?= uv
 LINT_PATHS := src tests taxonomy scripts analysis
 
+# 素の `make` で taxonomy/ の生成物を書き換えない（既定はテスト）
+.DEFAULT_GOAL := test
+
 .PHONY: taxonomy taxonomy-build taxonomy-viz lint format test
 
 taxonomy: taxonomy-build taxonomy-viz

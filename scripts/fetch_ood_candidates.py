@@ -5,10 +5,14 @@
     uv run python scripts/fetch_ood_candidates.py --source open_images --max-per-type 10
 
 モード:
-- ``--dry-run``: 取得計画（源・型・MID/カテゴリ・予算・URL・出力先）を JSON で出すだけ。
+- ``--dry-run``: 取得計画（源・型・MID/カテゴリ・予算配分・URL・出力先）を JSON で出すだけ。
   ネットワークにもファイルにも触れない（``CASCADE_CONTACT`` 不要）
 - ``--select-only``: 候補の選択まで実行して画像は取得しない（ラベル CSV / API 照会のためネットワークは使う）
 - 既定: 選択して画像を取得し、マニフェストへ書く
+
+予算: 型ごとの候補数（目標 × candidate_multiplier）を、その型に抽出ラベルを持つ源で均等に分ける
+（``fetch_common.allocate_budgets``。合計 ≈ 目標の 2 倍。配分は config だけで決まり ``--source`` に依存しない）。
+連絡先（``CASCADE_CONTACT``）は Commons を含むときだけ必須（GCS / S3 / COCO は不要）。
 
 画像は data/ext/<source>/images/ に落ち git 管理外。取得後に scripts/write_ood_lock.py で lock を作る。
 """
@@ -52,6 +56,7 @@ def build_plan(
     連絡先（``CASCADE_CONTACT``）は設定済みかどうかだけを報告し、値は出さない。
     """
     stypes = list(cfg.get("subject_types", {}))
+    alloc = fetch_common.allocate_budgets(cfg, max_per_type)
     plan: dict[str, Any] = {
         "mode": "dry_run",
         "config": None if config_path is None else str(config_path),
@@ -62,6 +67,8 @@ def build_plan(
         "per_class_cap": int(cfg.get("per_class_cap", 40)),
         "min_side": int(cfg.get("min_side", 256)),
         "budget_by_type": {t: fetch_common.type_budget(cfg, t, max_per_type) for t in stypes},
+        "allocation": alloc,
+        "contact_required": "commons" in targets,
         "sources": [],
     }
     for s in targets:
@@ -82,8 +89,10 @@ def build_plan(
                         }
                         for split, spec in oi.get("splits", {}).items()
                     },
+                    "food_exclusion_mids": len(oi.get("food_exclusion_mids") or {}),
                     "by_type": {
-                        t: {"budget": plan["budget_by_type"][t], "mids": m} for t, m in mids.items()
+                        t: {"budget": alloc["open_images"].get(t, 0), "mids": m}
+                        for t, m in mids.items()
                     },
                 }
             )
@@ -98,7 +107,7 @@ def build_plan(
                     "max_depth": int(cc.get("max_depth", 2)),
                     "thumb_width": cc.get("thumb_width"),
                     "by_type": {
-                        t: {"budget": plan["budget_by_type"][t], "categories": c}
+                        t: {"budget": alloc["commons"].get(t, 0), "categories": c}
                         for t, c in cats.items()
                     },
                 }
@@ -113,9 +122,11 @@ def build_plan(
                     "annotations_zip_url": co.get("annotations_zip_url"),
                     "images_zip_url": co.get("images_zip_url"),
                     "exclusion_category_ids": list(co.get("exclusion_category_ids", [])),
+                    "images_zip_sha256": co.get("images_zip_sha256"),
+                    "license_ids_allowed": list(co.get("license_ids_allowed", range(1, 9))),
                     "by_type": {
                         t: {
-                            "budget": plan["budget_by_type"][t],
+                            "budget": alloc["coco"].get(t, 0),
                             "categories": {str(k): v for k, v in c.items()},
                         }
                         for t, c in cats_by_id.items()
@@ -134,6 +145,7 @@ def build_plan(
                         max_per_type if max_per_type is not None else spec.get("n_take", 200)
                     ),
                     "subject_type": spec.get("subject_type"),
+                    "splits": spec.get("splits") or "all",
                     "images_dir": str(fetch_common.image_dir(spec.get("source_name", key))),
                 }
                 for key, spec in cfg.get("hf", {}).items()
@@ -182,14 +194,24 @@ def main(
     paths.ensure_dirs()
     results: list[dict[str, Any]] = []
     client = None
+    alloc = fetch_common.allocate_budgets(cfg, max_per_type)
     for s in targets:
         if s == "hf":
             results.extend(fetch_hf.fetch(cfg, dry_run=select_only, max_per_type=max_per_type))
             continue
         if client is None:
-            client = fetch_common.make_client(cfg)
+            # 連絡先は Commons を含むときだけ必須（GCS / S3 / COCO は無くても動く）
+            client = fetch_common.make_client(cfg, require_contact="commons" in targets)
         mod = {"open_images": fetch_openimages, "commons": fetch_commons, "coco": fetch_coco}[s]
-        results.append(mod.fetch(cfg, client, dry_run=select_only, max_per_type=max_per_type))
+        results.append(
+            mod.fetch(
+                cfg,
+                client,
+                dry_run=select_only,
+                max_per_type=max_per_type,
+                budget_of=alloc.get(s, {}),
+            )
+        )
 
     for r in results:
         if "candidates" in r:

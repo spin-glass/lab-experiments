@@ -130,3 +130,59 @@ def test_build_zeroshot_end_to_end(tmp_path: Path) -> None:
     assert zs.predict(zs.text_emb) == CLASSES
     p = zs.probs(zs.text_emb, tau=0.01)
     np.testing.assert_allclose(p.sum(axis=1), 1.0, atol=1e-6)
+
+
+# --- レビュー指摘の回帰テスト（text.py:28 / :69 / :84） --------------------------------------
+
+
+def test_parse_prompts_ignores_scheme_version_meta() -> None:
+    # 実 prompts.json のトップキーは scheme_version。フラット形式でも文字列メタをクラスにしない
+    per, order = parse_prompts({"scheme_version": "0.1.0", "food": ["x"], "drink": ["y"]})
+    assert order == ["food", "drink"] and "0.1.0" not in per
+    per2, order2 = parse_prompts({"scheme_version": "0.1.0", "generated_at": 1, "outside": ["z"]})
+    assert order2 == ["outside"]
+    nested = _prompts_nested()
+    nested["scheme_version"] = "0.1.0"
+    del nested["taxonomy_version"]
+    assert parse_prompts(nested)[1] == CLASSES
+
+
+def test_parse_prompts_rejects_classes_missing_from_class_order() -> None:
+    with pytest.raises(ValueError, match="class_order に無い"):
+        parse_prompts({"food": ["x"], "drink": ["y"], "class_order": ["food"]})
+    with pytest.raises(ValueError, match="重複"):
+        parse_prompts({"food": ["x"], "class_order": ["food", "food"]})
+
+
+def test_real_prompts_json_parses_with_class_order() -> None:
+    from cascade import paths
+
+    pj = paths.REPO_ROOT / "taxonomy" / "prompts.json"
+    if not pj.exists():
+        pytest.skip("taxonomy/prompts.json が未生成")
+    data = json.loads(pj.read_text(encoding="utf-8"))
+    per, order = parse_prompts(data)
+    assert order == list(data["class_order"]) and set(per) == set(order)
+    assert all(per[c] for c in order)
+
+
+def test_prompts_sha1_is_normalised_across_path_and_dict(tmp_path: Path) -> None:
+    from cascade.embed.text import prompts_sha1
+
+    d = _prompts_nested()
+    compact = tmp_path / "compact.json"
+    pretty = tmp_path / "pretty.json"
+    compact.write_text(json.dumps(d, separators=(",", ":")), encoding="utf-8")
+    pretty.write_text(json.dumps(d, indent=2, sort_keys=True), encoding="utf-8")
+    assert prompts_sha1(d) == prompts_sha1(compact) == prompts_sha1(pretty)
+    d2 = json.loads(json.dumps(d))
+    d2["classes"]["food"]["prompts"].append({"text": "another"})
+    assert prompts_sha1(d2) != prompts_sha1(d)
+
+    # Path / dict で同じテキストキャッシュが使われる（二重化しない）
+    enc = FakeEncoder()
+    root = tmp_path / "emb"
+    e1, _ = embed_prompts(enc, pretty, root=root)
+    e2, _ = embed_prompts(enc, d, root=root)
+    np.testing.assert_allclose(e1, e2)
+    assert len(list((root / enc.model_key / "text").glob("*.npy"))) == 1

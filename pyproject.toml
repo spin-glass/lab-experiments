@@ -28,6 +28,8 @@ dependencies = [
   "rdflib==7.6.0",
   "wandb==0.29.0",
   "google-cloud-aiplatform==2.1.0",
+  "pytz==2026.3.post1",
+  "matplotlib==3.11.1",
 ]
 
 [dependency-groups]
