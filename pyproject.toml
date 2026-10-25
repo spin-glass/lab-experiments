@@ -7,6 +7,11 @@ members = [
     "adaptive-learning/*",
     "anomaly-detection/*",
     "misc/*",
+    "vision/*",
+]
+# 単独の uv プロジェクトとして残す実験（理由は CLAUDE.md の「取り込んだ実験」）
+exclude = [
+    "vision/2026-08-14-vlm-cascade",
 ]
 
 [dependency-groups]

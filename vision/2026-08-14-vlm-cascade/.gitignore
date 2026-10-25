@@ -1,5 +1,6 @@
 # Yelp Open Dataset — 画像・生データは絶対にコミットしない（CLAUDE.md 絶対制約）
-data/
+# 先頭の / で実験フォルダ直下に限る（src/cascade/data/ はコードなので対象外）
+/data/
 
 # 認証情報
 .env
