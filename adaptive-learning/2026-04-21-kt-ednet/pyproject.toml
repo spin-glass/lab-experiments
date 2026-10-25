@@ -92,5 +92,5 @@ python-version = "3.11"
 include = ["src", "tests"]
 extraPaths = ["."]
 pythonVersion = "3.11"
-venvPath = "."
+venvPath = "../.."
 venv = ".venv"

@@ -38,7 +38,7 @@ help:
 
 # ----- Main project -----
 setup:
-	uv sync
+	uv sync --package adaptive-learning-kt
 
 download:
 	uv run python -m src.data.download --dest $(RAW_DIR)
@@ -70,7 +70,8 @@ clean:
 # system python3 and hangs. Using these targets from a normal shell works.
 #
 # Usage: `make preview FILE=notebooks/01-eda.qmd`
-QUARTO_PYTHON := $(PROJECT_ROOT)/.venv/bin/python
+# uv workspace の仮想環境は lab-experiments のルートにある
+QUARTO_PYTHON := $(abspath $(PROJECT_ROOT)/../..)/.venv/bin/python
 FILE ?= notebooks/01-eda.qmd
 
 preview:

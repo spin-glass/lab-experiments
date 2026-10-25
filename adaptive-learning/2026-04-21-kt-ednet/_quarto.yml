@@ -1,6 +1,6 @@
 project:
   type: website
-  output-dir: docs
+  output-dir: _site
   render:
     - index.qmd
     - "notebooks/01-eda.qmd"
