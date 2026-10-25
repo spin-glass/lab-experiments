@@ -1,7 +1,5 @@
 # Adaptive Learning with Knowledge Tracing
 
-[**GitHub Pages**](https://spin-glass.github.io/adaptive-learning-kt/)
-
 > テスト対策アプリで、次に何を出せば一番効果的か？
 
 EdNet の実データ（78万ユーザー・1.3億インタラクション）を使い、**Knowledge Tracing → Item Selection** のパイプラインを設計・実装するプロジェクト。
